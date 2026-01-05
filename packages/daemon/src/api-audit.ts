@@ -8,39 +8,43 @@
 import { existsSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { basename, join } from "path";
-import type { Hono } from "hono";
+import { MODEL_PRICING } from "@agentwatch/core";
+import { Hono } from "hono";
 import {
   type AuditAction,
   type AuditCategory,
+  type AuditEntry,
+  type AuditStats,
+  DATA_DIR,
   getAuditStats,
   getCompleteTimeline,
   logAuditEvent,
   readAuditLog
 } from "./audit-log";
-
-const DATA_DIR = join(homedir(), ".agentwatch");
+import {
+  DIMENSION_WEIGHTS,
+  SIGNAL_WEIGHTS
+} from "./enrichments/quality-score";
 
 /**
- * Get info about a data file.
+ * Get file info safely.
  */
 function getFileInfo(path: string): {
   exists: boolean;
   size?: number;
-  modified?: string;
-  created?: string;
+  mtime?: Date;
 } {
-  if (!existsSync(path)) {
-    return { exists: false };
-  }
   try {
+    if (!existsSync(path)) {
+      return { exists: false };
+    }
     const stats = statSync(path);
     return {
       exists: true,
       size: stats.size,
-      modified: stats.mtime.toISOString(),
-      created: stats.birthtime.toISOString()
+      mtime: stats.mtime
     };
-  } catch {
+  } catch (err) {
     return { exists: false };
   }
 }
@@ -56,7 +60,7 @@ function countFiles(dirPath: string, pattern?: RegExp): number {
       return files.filter((f) => pattern.test(f)).length;
     }
     return files.length;
-  } catch {
+  } catch (err) {
     return 0;
   }
 }
@@ -69,48 +73,50 @@ export function registerAuditEndpoints(app: Hono): void {
    * GET /api/audit - Get the complete audit timeline
    */
   app.get("/api/audit", async (c) => {
-    const limit = Number.parseInt(c.req.query("limit") || "100", 10);
-    const offset = Number.parseInt(c.req.query("offset") || "0", 10);
+    const limit = Number(c.req.query("limit") ?? "50");
+    const offset = Number(c.req.query("offset") ?? "0");
     const category = c.req.query("category") as AuditCategory | undefined;
+    const action = c.req.query("action") as AuditAction | undefined;
     const since = c.req.query("since");
     const until = c.req.query("until");
-    const includeInferred = c.req.query("include_inferred") !== "false";
 
     try {
-      const result = await getCompleteTimeline({
-        limit,
-        offset,
-        category,
-        since: since || undefined,
-        until: until || undefined,
-        includeInferred
-      });
+      // Read logs
+      const allEvents = readAuditLog({ category, action });
+
+      // Apply time filters
+      let filtered = allEvents;
+      if (since) {
+        const sinceDate = new Date(since);
+        filtered = filtered.filter((e) => new Date(e.timestamp) >= sinceDate);
+      }
+      if (until) {
+        const untilDate = new Date(until);
+        filtered = filtered.filter((e) => new Date(e.timestamp) <= untilDate);
+      }
+
+      // Sort by time (newest first) - default for readAuditLog is append order (oldest first)
+      filtered.reverse();
+
+      // Pagination
+      const page = filtered.slice(offset, offset + limit);
 
       return c.json({
-        events: result.events.map((e) => ({
-          timestamp: e.timestamp,
-          category: e.category,
-          action: e.action,
-          entity_id: e.entityId,
-          description: e.description,
-          details: e.details,
-          source: e.source
-        })),
-        stats: {
-          total_events: result.stats.totalEvents,
-          by_category: result.stats.byCategory,
-          by_action: result.stats.byAction,
-          oldest_event: result.stats.oldestEvent,
-          newest_event: result.stats.newestEvent
-        },
-        sources: result.sources,
+        events: page,
+        stats: getAuditStats(),
         pagination: {
+          total: filtered.length,
           limit,
           offset,
-          has_more: result.stats.totalEvents > offset + limit
+          has_more: offset + limit < filtered.length
+        },
+        sources: {
+          file: DATA_DIR,
+          inferred: 0 // Legacy inference removed for speed
         }
       });
     } catch (err) {
+      console.error("Error serving audit log:", err);
       return c.json(
         {
           error: "Failed to fetch audit log",
@@ -126,13 +132,51 @@ export function registerAuditEndpoints(app: Hono): void {
    */
   app.get("/api/audit/stats", (c) => {
     const stats = getAuditStats();
+    return c.json(stats);
+  });
 
+  /**
+   * GET /api/audit/calculations - Get transparent calculation logic
+   *
+   * This provides full transparency into how AgentWatch computes
+   * scores, costs, and other derived metrics.
+   */
+  app.get("/api/audit/calculations", (c) => {
     return c.json({
-      total_events: stats.totalEvents,
-      by_category: stats.byCategory,
-      by_action: stats.byAction,
-      oldest_event: stats.oldestEvent,
-      newest_event: stats.newestEvent
+      quality_score: {
+        description:
+          "Quality scores are a weighted average of four dimensions, modified by penalties.",
+        dimension_weights: DIMENSION_WEIGHTS,
+        signal_weights: SIGNAL_WEIGHTS,
+        scoring_rules: [
+          "Start with 50 points (neutral)",
+          "+20 points for making commits",
+          "+15 points for passing tests (if ran)",
+          "+10 points if all tests passed (no failures)",
+          "+10 points for successful build",
+          "-20 points for test failures",
+          "-15 points for build failure",
+          "+5 points for ending session normally (within 1 min of last activity)"
+        ],
+        penalties: [
+          "-10 points overall if loops are detected",
+          "-20 points for high tool failure rate (>30%)",
+          "-15 points for excessive tool usage (>500 calls)",
+          "-15 points for dangerous commands (rm -rf, sudo, etc.)"
+        ]
+      },
+      cost_estimation: {
+        description:
+          "Costs are estimated locally based on token usage and public pricing.",
+        pricing_table: MODEL_PRICING,
+        formulas: [
+          "Input Cost = (Input Tokens / 1M) * Input Rate",
+          "Output Cost = (Output Tokens / 1M) * Output Rate",
+          "Cache Cost = (Cache Tokens / 1M) * Input Rate * 0.25 (25% of input rate)"
+        ],
+        disclaimer:
+          "These are estimates only. Actual billing from providers may vary slightly due to rounding or plan differences."
+      }
     });
   });
 

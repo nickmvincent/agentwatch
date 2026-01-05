@@ -94,7 +94,7 @@ export interface AuditStats {
 // PATHS
 // =============================================================================
 
-const DATA_DIR = join(homedir(), ".agentwatch");
+export const DATA_DIR = join(homedir(), ".agentwatch");
 const EVENTS_LOG_PATH = join(DATA_DIR, "events.jsonl");
 const LEGACY_AUDIT_LOG_PATH = join(DATA_DIR, "audit.jsonl");
 
