@@ -1,32 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentPane } from "./components/AgentPane";
 import { AnalyticsPane } from "./components/AnalyticsPane";
-import { AuditLogPane } from "./components/AuditLogPane";
 import { ContribPane } from "./components/ContribPane";
 import { ConversationsPane } from "./components/ConversationsPane";
 import { DocumentationPane } from "./components/DocumentationPane";
 import { Header } from "./components/Header";
-import { HooksPane } from "./components/HooksPane";
 import { PortsPane } from "./components/PortsPane";
 import { ProjectsPane } from "./components/ProjectsPane";
-import { RepoPane } from "./components/RepoPane";
 import { SettingsPane } from "./components/SettingsPane";
 import { ConversationProvider } from "./context/ConversationContext";
 import { useWebSocket } from "./hooks/useWebSocket";
 
 type Tab =
   | "agents"
-  | "hooks"
-  | "repos"
   | "ports"
   | "projects"
   | "conversations"
   | "analytics"
   | "contrib"
   | "docs"
-  | "audit"
   | "settings";
-type HideableTab = "hooks" | "repos" | "ports";
+type HideableTab = "ports";
 
 // Helper to fetch and patch config
 const API_BASE = import.meta.env.DEV ? "http://localhost:8420" : "";
@@ -69,8 +63,10 @@ function App() {
   // Track if config has been loaded from API
   const configLoaded = useRef(false);
 
-  // Hidden tabs state (loads from config API)
-  const [hiddenTabs, setHiddenTabs] = useState<Set<HideableTab>>(new Set());
+  // Hidden tabs state (loads from config API, ports hidden by default)
+  const [hiddenTabs, setHiddenTabs] = useState<Set<HideableTab>>(
+    new Set(["ports"])
+  );
   // Hidden ports state (loads from config API)
   const [hiddenPorts, setHiddenPorts] = useState<Set<number>>(new Set());
 
@@ -202,30 +198,21 @@ function App() {
           setActiveTab("agents");
           break;
         case "2":
-          setActiveTab("hooks");
-          break;
-        case "3":
-          setActiveTab("repos");
-          break;
-        case "4":
-          setActiveTab("ports");
-          break;
-        case "5":
           setActiveTab("projects");
           break;
-        case "6":
+        case "3":
           setActiveTab("conversations");
           break;
-        case "7":
+        case "4":
           setActiveTab("analytics");
           break;
-        case "8":
+        case "5":
           setActiveTab("contrib");
           break;
-        case "9":
+        case "6":
           setActiveTab("docs");
           break;
-        case "0":
+        case "7":
           setActiveTab("settings");
           break;
         case "Escape":
@@ -242,7 +229,9 @@ function App() {
   const visiblePortsCount = ports.filter(
     (p) => !hiddenPorts.has(p.port)
   ).length;
-  const activeHookSessions = hookSessions.filter((s) => s.active).length;
+  // Count agents with active hook sessions or managed sessions (enhanced monitoring)
+  const enhancedCount =
+    hookSessions.filter((s) => s.active).length + managedSessions.length;
 
   // If active tab is hidden, switch to agents
   useEffect(() => {
@@ -277,55 +266,18 @@ function App() {
                 }`}
               >
                 Agents
-                {agents.length > 0 && (
+                {(agents.length > 0 || enhancedCount > 0) && (
                   <span
                     className="px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full"
-                    title="Running AI coding agents detected on system"
+                    title={`${agents.length} running agent${agents.length !== 1 ? "s" : ""}${enhancedCount > 0 ? `, ${enhancedCount} enhanced` : ""}`}
                   >
                     {agents.length}
+                    {enhancedCount > 0 && (
+                      <span className="text-green-300"> · {enhancedCount}</span>
+                    )}
                   </span>
                 )}
               </button>
-              {!hiddenTabs.has("hooks") && (
-                <button
-                  onClick={() => setActiveTab("hooks")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                    activeTab === "hooks"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Claude Code Hooks
-                  {activeHookSessions > 0 && (
-                    <span
-                      className="px-1.5 py-0.5 text-xs bg-green-600 text-white rounded-full"
-                      title={`${activeHookSessions} active session${activeHookSessions > 1 ? "s" : ""} sending hooks`}
-                    >
-                      {activeHookSessions}
-                    </span>
-                  )}
-                </button>
-              )}
-              {!hiddenTabs.has("repos") && (
-                <button
-                  onClick={() => setActiveTab("repos")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                    activeTab === "repos"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Repos
-                  {dirtyRepos > 0 && (
-                    <span
-                      className="px-1.5 py-0.5 text-xs bg-yellow-600 text-white rounded-full"
-                      title="Repositories with uncommitted changes"
-                    >
-                      {dirtyRepos}
-                    </span>
-                  )}
-                </button>
-              )}
               {!hiddenTabs.has("ports") && (
                 <button
                   onClick={() => setActiveTab("ports")}
@@ -353,13 +305,21 @@ function App() {
               {/* Group 2: Analysis & Contribution */}
               <button
                 onClick={() => setActiveTab("projects")}
-                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   activeTab === "projects"
                     ? "border-blue-500 text-blue-400"
                     : "border-transparent text-gray-400 hover:text-gray-300"
                 }`}
               >
                 Projects
+                {dirtyRepos > 0 && (
+                  <span
+                    className="px-1.5 py-0.5 text-xs bg-yellow-600 text-white rounded-full"
+                    title="Repositories with uncommitted changes"
+                  >
+                    {dirtyRepos} dirty
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => setActiveTab("conversations")}
@@ -405,16 +365,6 @@ function App() {
                 }`}
               >
                 Docs
-              </button>
-              <button
-                onClick={() => setActiveTab("audit")}
-                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                  activeTab === "audit"
-                    ? "border-blue-500 text-blue-400"
-                    : "border-transparent text-gray-400 hover:text-gray-300"
-                }`}
-              >
-                Activity
               </button>
               <button
                 onClick={() => setActiveTab("settings")}
@@ -522,19 +472,13 @@ function App() {
               agents={agents}
               hookSessions={hookSessions}
               managedSessions={managedSessions}
-            />
-          )}
-
-          {activeTab === "hooks" && (
-            <HooksPane
-              hookSessions={hookSessions}
               recentToolUsages={recentToolUsages}
               activityEvents={activityEvents}
               sessionTokens={sessionTokens}
             />
           )}
 
-          {activeTab === "projects" && <ProjectsPane />}
+          {activeTab === "projects" && <ProjectsPane repos={repos} />}
 
           {activeTab === "conversations" && (
             <ConversationsPane
@@ -545,10 +489,11 @@ function App() {
           {activeTab === "analytics" && (
             <AnalyticsPane
               onNavigateToConversations={() => setActiveTab("conversations")}
+              hookSessions={hookSessions}
+              recentToolUsages={recentToolUsages}
+              sessionTokens={sessionTokens}
             />
           )}
-
-          {activeTab === "repos" && <RepoPane repos={repos} />}
 
           {activeTab === "ports" && (
             <PortsPane
@@ -565,8 +510,6 @@ function App() {
           )}
 
           {activeTab === "docs" && <DocumentationPane />}
-
-          {activeTab === "audit" && <AuditLogPane />}
 
           {activeTab === "settings" && (
             <SettingsPane
@@ -627,7 +570,7 @@ function App() {
               <div className="space-y-2 text-sm">
                 <div className="text-gray-400 font-medium mt-2">Navigation</div>
                 <div className="flex justify-between">
-                  <span className="text-yellow-400">1-9, 0</span>
+                  <span className="text-yellow-400">1-7</span>
                   <span className="text-gray-300">Switch tabs</span>
                 </div>
 

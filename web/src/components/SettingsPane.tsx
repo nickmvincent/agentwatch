@@ -24,11 +24,12 @@ import type {
   Project,
   QualityConfigResult
 } from "../api/types";
+import { AuditLogPane } from "./AuditLogPane";
 import { ReferencePane } from "./ReferencePane";
 import { Toast } from "./Toast";
 import { InfoTooltip } from "./ui/InfoTooltip";
 
-type HideableTab = "hooks" | "repos" | "ports";
+type HideableTab = "ports";
 
 interface SettingsPaneProps {
   hiddenTabs: Set<HideableTab>;
@@ -130,6 +131,7 @@ export function SettingsPane({
     { id: "hook-enhancements", label: "Hook Enhancements" },
     { id: "claude-settings", label: "Claude Code" },
     { id: "test-gate", label: "Test Gate" },
+    { id: "activity", label: "Activity" },
     { id: "config-info", label: "Config Info" },
     { id: "external-reference", label: "Reference" },
     { id: "raw-files", label: "Raw Files" }
@@ -195,8 +197,8 @@ export function SettingsPane({
       >
         <h2 className="text-lg font-semibold text-white mb-2">Visible Tabs</h2>
         <p className="text-sm text-gray-400 mb-2">
-          Hide tabs you don't use. Hidden tabs won't fetch data, reducing
-          network overhead.
+          Toggle optional tabs. Hidden tabs won't fetch data, reducing network
+          overhead.
         </p>
         <p className="text-xs text-gray-500 mb-4">
           Stored in:{" "}
@@ -209,29 +211,14 @@ export function SettingsPane({
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
-              checked={!hiddenTabs.has("hooks")}
-              onChange={() => onToggleTabVisibility("hooks")}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
-            />
-            <span className="text-gray-300">Claude Code Hooks</span>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={!hiddenTabs.has("repos")}
-              onChange={() => onToggleTabVisibility("repos")}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
-            />
-            <span className="text-gray-300">Repos</span>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
               checked={!hiddenTabs.has("ports")}
               onChange={() => onToggleTabVisibility("ports")}
               className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
             />
             <span className="text-gray-300">Ports</span>
+            <span className="text-xs text-gray-500">
+              (Shows listening dev server ports)
+            </span>
           </label>
         </div>
       </div>
@@ -677,6 +664,9 @@ export function SettingsPane({
           </p>
         </div>
       </div>
+
+      {/* Activity / Audit Log Section */}
+      <ActivitySection />
 
       {/* Info Section */}
       <div id="config-info" className="bg-gray-800 rounded-lg p-4 scroll-mt-16">
@@ -4488,6 +4478,34 @@ function ClaudeSettingsSection() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Activity Section - collapsible wrapper for AuditLogPane
+function ActivitySection() {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div id="activity" className="bg-gray-800 rounded-lg scroll-mt-16">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-750 rounded-lg"
+      >
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-white">Activity Log</h2>
+          <span className="text-xs text-gray-400">
+            View audit events and data sources
+          </span>
+        </div>
+        <span className="text-gray-400">{expanded ? "▼" : "▶"}</span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-gray-700">
+          <AuditLogPane />
         </div>
       )}
     </div>

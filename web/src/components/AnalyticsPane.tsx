@@ -16,19 +16,30 @@ import type {
   AnalyticsDashboard,
   CostByTypeItem,
   DailyStats,
+  HookSession,
   LoopsAnalyticsResult,
   QualityDistributionBucket,
   SuccessTrendPoint,
   ToolRetriesResult,
-  ToolStats
+  ToolStats,
+  ToolUsage
 } from "../api/types";
 import {
   type ConversationFilter,
   useConversations
 } from "../context/ConversationContext";
 
+interface SessionTokens {
+  inputTokens: number;
+  outputTokens: number;
+  turnCount: number;
+}
+
 interface AnalyticsPaneProps {
   onNavigateToConversations?: () => void;
+  hookSessions?: HookSession[];
+  recentToolUsages?: ToolUsage[];
+  sessionTokens?: Record<string, SessionTokens>;
 }
 
 // Task type colors
@@ -370,7 +381,10 @@ function TransparencyDetails({
 }
 
 export function AnalyticsPane({
-  onNavigateToConversations
+  onNavigateToConversations,
+  hookSessions: _hookSessions = [],
+  recentToolUsages: _recentToolUsages = [],
+  sessionTokens: _sessionTokens = {}
 }: AnalyticsPaneProps) {
   const { setFilter } = useConversations();
   const [loading, setLoading] = useState(true);

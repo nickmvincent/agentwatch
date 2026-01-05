@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createProject,
   deleteProject,
@@ -7,7 +7,11 @@ import {
   inferProjects,
   updateProject
 } from "../api/client";
-import type { Project, ProjectAnalyticsItem } from "../api/types";
+import type { Project, ProjectAnalyticsItem, RepoStatus } from "../api/types";
+
+interface ProjectsPaneProps {
+  repos: RepoStatus[];
+}
 
 interface ProjectWithStats extends Project {
   session_count?: number;
@@ -22,7 +26,7 @@ function formatTokens(count: number): string {
   return count.toString();
 }
 
-export function ProjectsPane() {
+export function ProjectsPane({ repos }: ProjectsPaneProps) {
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +45,51 @@ export function ProjectsPane() {
   const [saving, setSaving] = useState(false);
   const [inferring, setInferring] = useState(false);
   const [inferResult, setInferResult] = useState<string | null>(null);
+
+  // Find repos matching project paths
+  const getReposForProject = useCallback(
+    (project: Project): RepoStatus[] => {
+      return repos.filter((repo) =>
+        project.paths.some(
+          (path) =>
+            repo.path === path ||
+            repo.path.startsWith(path + "/") ||
+            path.startsWith(repo.path + "/")
+        )
+      );
+    },
+    [repos]
+  );
+
+  // Get repo status for a specific path
+  const getRepoForPath = useCallback(
+    (path: string): RepoStatus | undefined => {
+      return repos.find(
+        (repo) =>
+          repo.path === path ||
+          repo.path.startsWith(path + "/") ||
+          path.startsWith(repo.path + "/")
+      );
+    },
+    [repos]
+  );
+
+  // Calculate project repo stats
+  const projectRepoStats = useMemo(() => {
+    const stats = new Map<
+      string,
+      { total: number; dirty: number; clean: number }
+    >();
+    for (const project of projects) {
+      const projectRepos = getReposForProject(project);
+      stats.set(project.id, {
+        total: projectRepos.length,
+        dirty: projectRepos.filter((r) => r.dirty).length,
+        clean: projectRepos.filter((r) => !r.dirty).length
+      });
+    }
+    return stats;
+  }, [projects, getReposForProject]);
 
   // Load projects and analytics
   const loadProjects = useCallback(async () => {
@@ -295,23 +344,69 @@ export function ProjectsPane() {
                 </div>
               </div>
 
-              {/* Paths */}
-              <div className="mt-3 space-y-1">
-                {project.paths.slice(0, 2).map((path, i) => (
-                  <div
-                    key={i}
-                    className="text-xs text-gray-500 truncate font-mono"
-                    title={path}
-                  >
-                    {path}
-                  </div>
-                ))}
-                {project.paths.length > 2 && (
+              {/* Paths with Git Status */}
+              <div className="mt-3 space-y-1.5">
+                {project.paths.slice(0, 3).map((path, i) => {
+                  const repo = getRepoForPath(path);
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <div
+                        className="flex-1 text-xs text-gray-500 truncate font-mono"
+                        title={path}
+                      >
+                        {path.split("/").pop()}
+                      </div>
+                      {repo && (
+                        <div className="flex items-center gap-1.5 text-[10px] shrink-0">
+                          <span className="text-gray-500">{repo.branch}</span>
+                          {repo.dirty ? (
+                            <span
+                              className="text-yellow-400"
+                              title={`${repo.staged} staged, ${repo.unstaged} modified, ${repo.untracked} untracked`}
+                            >
+                              {repo.staged + repo.unstaged + repo.untracked}{" "}
+                              changes
+                            </span>
+                          ) : (
+                            <span className="text-green-500">clean</span>
+                          )}
+                          {(repo.ahead > 0 || repo.behind > 0) && (
+                            <span className="text-gray-400">
+                              {repo.ahead > 0 && `↑${repo.ahead}`}
+                              {repo.behind > 0 && `↓${repo.behind}`}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {project.paths.length > 3 && (
                   <div className="text-xs text-gray-600">
-                    +{project.paths.length - 2} more
+                    +{project.paths.length - 3} more paths
                   </div>
                 )}
               </div>
+
+              {/* Repo Summary */}
+              {(() => {
+                const stats = projectRepoStats.get(project.id);
+                if (!stats || stats.total === 0) return null;
+                return (
+                  <div className="mt-2 flex items-center gap-2 text-[10px]">
+                    {stats.dirty > 0 && (
+                      <span className="px-1.5 py-0.5 bg-yellow-900/50 text-yellow-400 rounded">
+                        {stats.dirty} dirty
+                      </span>
+                    )}
+                    {stats.clean > 0 && (
+                      <span className="px-1.5 py-0.5 bg-green-900/50 text-green-400 rounded">
+                        {stats.clean} clean
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Stats */}
               <div className="mt-3 pt-3 border-t border-gray-800 flex items-center gap-4 text-xs text-gray-500">

@@ -20,6 +20,7 @@ interface AgentDetailModalProps {
   agent: AgentProcess;
   hookSession: HookSession | null;
   linkedConversation?: Conversation;
+  recentToolUsages?: ToolUsage[];
   onClose: () => void;
   onMetadataUpdate?: (metadata: AgentMetadata) => void;
 }
@@ -36,6 +37,7 @@ export function AgentDetailModal({
   agent,
   hookSession,
   linkedConversation,
+  recentToolUsages = [],
   onClose,
   onMetadataUpdate
 }: AgentDetailModalProps) {
@@ -43,7 +45,7 @@ export function AgentDetailModal({
 
   const [tab, setTab] = useState<Tab>(hookSession ? "overview" : "output");
   const [output, setOutput] = useState<string[]>([]);
-  const [timeline, setTimeline] = useState<ToolUsage[]>([]);
+  const [timeline, setTimeline] = useState<ToolUsage[]>(recentToolUsages);
   const [loading, setLoading] = useState(false);
 
   // Agent metadata state

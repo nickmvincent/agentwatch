@@ -1,20 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchAllAgentMetadata, fetchProjects } from "../api/client";
 import type {
+  ActivityEvent,
   AgentMetadata,
   AgentProcess,
   Conversation,
   HookSession,
   ManagedSession,
-  Project
+  Project,
+  ToolUsage
 } from "../api/types";
 import { useConversationsOptional } from "../context/ConversationContext";
 import { AgentDetailModal } from "./AgentDetailModal";
+import { HookTimelineSection } from "./HookTimelineSection";
+import { HookEnhancementsSection } from "./HookEnhancementsSection";
+
+interface SessionTokens {
+  inputTokens: number;
+  outputTokens: number;
+  turnCount: number;
+}
 
 interface AgentPaneProps {
   agents: AgentProcess[];
   hookSessions: HookSession[];
   managedSessions: ManagedSession[];
+  recentToolUsages: ToolUsage[];
+  activityEvents: ActivityEvent[];
+  sessionTokens: Record<string, SessionTokens>;
 }
 
 interface GroupedAgents {
@@ -132,7 +145,10 @@ function generateAgentId(label: string, exe: string): string {
 export function AgentPane({
   agents,
   hookSessions,
-  managedSessions
+  managedSessions,
+  recentToolUsages,
+  activityEvents,
+  sessionTokens
 }: AgentPaneProps) {
   const [selectedPid, setSelectedPid] = useState<number | null>(null);
   const [filter, setFilter] = useState("");
@@ -584,11 +600,32 @@ export function AgentPane({
         </div>
       </div>
 
+      {/* Hook Sections - only show if there are active hook sessions */}
+      {hookSessions.some((s) => s.active) && (
+        <div className="mt-6 space-y-4">
+          {/* Hook Timeline Section */}
+          <HookTimelineSection
+            hookSessions={hookSessions}
+            recentToolUsages={recentToolUsages}
+            activityEvents={activityEvents}
+            sessionTokens={sessionTokens}
+          />
+
+          {/* Hook Enhancements Section */}
+          <HookEnhancementsSection />
+        </div>
+      )}
+
       {selectedAgent && (
         <AgentDetailModal
           agent={selectedAgent}
           hookSession={findHookSession(selectedAgent, hookSessions) || null}
           linkedConversation={getLinkedConversation(selectedAgent)}
+          recentToolUsages={recentToolUsages.filter(
+            (t) =>
+              t.session_id ===
+              findHookSession(selectedAgent, hookSessions)?.session_id
+          )}
           onClose={() => setSelectedPid(null)}
           onMetadataUpdate={handleMetadataUpdate}
         />
