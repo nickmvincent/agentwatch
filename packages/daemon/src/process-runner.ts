@@ -121,6 +121,26 @@ export interface RunOptions {
   intentions?: string;
 }
 
+/** Options for launching an interactive run in tmux */
+export interface InteractiveRunOptions extends RunOptions {
+  /** Custom tmux session name (default: aw-<sessionId>) */
+  tmuxSessionName?: string;
+}
+
+/** Info about a running tmux session */
+export interface TmuxSessionInfo {
+  /** Managed session ID */
+  sessionId: string;
+  /** tmux session name */
+  tmuxSession: string;
+  /** Command to attach to this session */
+  attachCommand: string;
+  /** When the session was started */
+  startedAt: number;
+  /** Whether the tmux session is still running */
+  isRunning: boolean;
+}
+
 /** Result from a completed run */
 export interface RunResult {
   /** Session ID */
@@ -169,6 +189,57 @@ export function buildEnhancedPrompt(
   return parts.join("\n");
 }
 
+/** tmux session prefix for agentwatch sessions */
+const TMUX_SESSION_PREFIX = "aw-";
+
+/**
+ * Check if tmux is installed and available.
+ */
+async function isTmuxAvailable(): Promise<boolean> {
+  try {
+    const proc = Bun.spawn(["which", "tmux"], {
+      stdout: "pipe",
+      stderr: "pipe"
+    });
+    const exitCode = await proc.exited;
+    return exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a tmux session exists and is running.
+ */
+async function isTmuxSessionRunning(sessionName: string): Promise<boolean> {
+  try {
+    const proc = Bun.spawn(["tmux", "has-session", "-t", sessionName], {
+      stdout: "pipe",
+      stderr: "pipe"
+    });
+    const exitCode = await proc.exited;
+    return exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Kill a tmux session.
+ */
+async function killTmuxSession(sessionName: string): Promise<boolean> {
+  try {
+    const proc = Bun.spawn(["tmux", "kill-session", "-t", sessionName], {
+      stdout: "pipe",
+      stderr: "pipe"
+    });
+    const exitCode = await proc.exited;
+    return exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Process Runner for daemon-side agent spawning.
  */
@@ -177,6 +248,11 @@ export class ProcessRunner {
   private runningProcesses: Map<
     string,
     { proc: ReturnType<typeof Bun.spawn>; startedAt: number }
+  > = new Map();
+  /** Track tmux sessions: sessionId -> tmux session name */
+  private tmuxSessions: Map<
+    string,
+    { tmuxSession: string; startedAt: number }
   > = new Map();
   private onRunComplete?: RunCompleteCallback;
 
@@ -399,5 +475,257 @@ export class ProcessRunner {
     } catch {
       return false;
     }
+  }
+
+  // =========================================================================
+  // Interactive (tmux) mode
+  // =========================================================================
+
+  /**
+   * Check if tmux is available on the system.
+   */
+  async isTmuxAvailable(): Promise<boolean> {
+    return isTmuxAvailable();
+  }
+
+  /**
+   * Launch an interactive agent session in tmux.
+   * User can attach via: tmux attach -t <session-name>
+   */
+  async runInteractive(
+    options: InteractiveRunOptions
+  ): Promise<{ tmuxSession: string; attachCommand: string }> {
+    const { sessionId, prompt, agent, cwd, principlesInjection, intentions } =
+      options;
+
+    if (!this.isValidAgent(agent)) {
+      throw new Error(`Unknown agent: ${agent}`);
+    }
+
+    // Check tmux is available
+    if (!(await isTmuxAvailable())) {
+      throw new Error(
+        "tmux is not installed. Install it with: brew install tmux (macOS) or apt install tmux (Linux)"
+      );
+    }
+
+    // Build enhanced prompt with principles/intentions
+    const fullPrompt = buildEnhancedPrompt(
+      prompt,
+      principlesInjection,
+      intentions
+    );
+
+    // Get agent command (interactive mode)
+    const agentConfig = AGENT_COMMANDS[agent];
+    const binaryName = agentConfig.interactive[0] as string;
+
+    // Resolve binary to full path
+    const binaryPath = await resolveBinaryPath(binaryName);
+    if (!binaryPath) {
+      throw new Error(
+        `Agent '${agent}' not found. Searched common paths for '${binaryName}'. ` +
+          `Please ensure the agent CLI is installed.`
+      );
+    }
+
+    // Verify cwd exists
+    try {
+      const { statSync } = await import("fs");
+      const stats = statSync(cwd);
+      if (!stats.isDirectory()) {
+        throw new Error(`Working directory is not a directory: ${cwd}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("is not a directory")) {
+        throw e;
+      }
+      throw new Error(`Working directory does not exist: ${cwd}`);
+    }
+
+    // Generate tmux session name
+    const shortId = sessionId.slice(0, 8);
+    const tmuxSession =
+      options.tmuxSessionName || `${TMUX_SESSION_PREFIX}${shortId}`;
+
+    // Check if session already exists
+    if (await isTmuxSessionRunning(tmuxSession)) {
+      throw new Error(`tmux session '${tmuxSession}' already exists`);
+    }
+
+    // Build the agent command
+    // For interactive mode, we pass the prompt as the initial command
+    const agentArgs = [...agentConfig.interactive.slice(1)];
+
+    // Create a shell script that runs the agent with the prompt
+    // This ensures proper shell initialization and PATH
+    const shellCommand = `cd ${JSON.stringify(cwd)} && ${binaryPath} ${agentArgs.map((a) => JSON.stringify(a)).join(" ")} ${JSON.stringify(fullPrompt)}`;
+
+    // Create tmux session with the agent command
+    // Use -d to create detached, user attaches manually
+    // Use default-shell to ensure login shell for proper PATH
+    const tmuxArgs = [
+      "new-session",
+      "-d", // Detached
+      "-s",
+      tmuxSession, // Session name
+      "-c",
+      cwd, // Working directory
+      // Use a login shell to get proper PATH
+      process.env.SHELL || "/bin/bash",
+      "-l",
+      "-c",
+      shellCommand
+    ];
+
+    try {
+      const proc = Bun.spawn(["tmux", ...tmuxArgs], {
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          PATH: [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            process.env.HOME + "/.bun/bin",
+            process.env.HOME + "/.local/bin",
+            "/usr/bin",
+            process.env.PATH
+          ]
+            .filter(Boolean)
+            .join(":")
+        }
+      });
+
+      const exitCode = await proc.exited;
+      if (exitCode !== 0) {
+        const stderr = proc.stderr
+          ? await new Response(proc.stderr).text()
+          : "";
+        throw new Error(`tmux failed to create session: ${stderr}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("tmux failed")) {
+        throw e;
+      }
+      throw new Error(`Failed to create tmux session: ${e}`);
+    }
+
+    // Track the tmux session
+    this.tmuxSessions.set(sessionId, {
+      tmuxSession,
+      startedAt: Date.now()
+    });
+
+    // Update session store
+    this.sessionStore.updateSession(sessionId, {
+      // Store tmux session name in metadata
+      // @ts-expect-error - extending session with tmux info
+      tmuxSession
+    });
+
+    // Start monitoring the tmux session in background
+    this.monitorTmuxSession(sessionId, tmuxSession);
+
+    const attachCommand = `tmux attach -t ${tmuxSession}`;
+
+    return { tmuxSession, attachCommand };
+  }
+
+  /**
+   * Monitor a tmux session and update when it ends.
+   */
+  private async monitorTmuxSession(
+    sessionId: string,
+    tmuxSession: string
+  ): Promise<void> {
+    const startedAt = Date.now();
+
+    // Poll every 5 seconds to check if session is still running
+    const checkInterval = setInterval(async () => {
+      const isRunning = await isTmuxSessionRunning(tmuxSession);
+
+      if (!isRunning) {
+        clearInterval(checkInterval);
+
+        // Session ended
+        const durationMs = Date.now() - startedAt;
+
+        // Remove from tracking
+        this.tmuxSessions.delete(sessionId);
+
+        // End the managed session (exit code 0 since we can't know actual exit)
+        this.sessionStore.endSession(sessionId, 0);
+
+        // Notify callback
+        if (this.onRunComplete) {
+          try {
+            this.onRunComplete({
+              sessionId,
+              exitCode: 0,
+              durationMs
+            });
+          } catch {
+            // Ignore callback errors
+          }
+        }
+      }
+    }, 5000);
+  }
+
+  /**
+   * Get info about all tmux sessions.
+   */
+  async getTmuxSessions(): Promise<TmuxSessionInfo[]> {
+    const sessions: TmuxSessionInfo[] = [];
+
+    for (const [sessionId, info] of this.tmuxSessions) {
+      const isRunning = await isTmuxSessionRunning(info.tmuxSession);
+
+      sessions.push({
+        sessionId,
+        tmuxSession: info.tmuxSession,
+        attachCommand: `tmux attach -t ${info.tmuxSession}`,
+        startedAt: info.startedAt,
+        isRunning
+      });
+    }
+
+    return sessions;
+  }
+
+  /**
+   * Get info about a specific tmux session.
+   */
+  async getTmuxSession(sessionId: string): Promise<TmuxSessionInfo | null> {
+    const info = this.tmuxSessions.get(sessionId);
+    if (!info) return null;
+
+    const isRunning = await isTmuxSessionRunning(info.tmuxSession);
+
+    return {
+      sessionId,
+      tmuxSession: info.tmuxSession,
+      attachCommand: `tmux attach -t ${info.tmuxSession}`,
+      startedAt: info.startedAt,
+      isRunning
+    };
+  }
+
+  /**
+   * Kill a tmux session by managed session ID.
+   */
+  async killTmuxSession(sessionId: string): Promise<boolean> {
+    const info = this.tmuxSessions.get(sessionId);
+    if (!info) return false;
+
+    const killed = await killTmuxSession(info.tmuxSession);
+    if (killed) {
+      this.tmuxSessions.delete(sessionId);
+      this.sessionStore.endSession(sessionId, -1);
+    }
+
+    return killed;
   }
 }

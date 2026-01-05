@@ -2167,6 +2167,161 @@ export function createApp(state: AppState): Hono {
     });
   });
 
+  // Check if tmux is available for interactive mode
+  app.get("/api/command-center/tmux-available", async (c) => {
+    if (!state.processRunner) {
+      return c.json({ available: false, reason: "Process runner not ready" });
+    }
+    const available = await state.processRunner.isTmuxAvailable();
+    return c.json({
+      available,
+      reason: available
+        ? null
+        : "tmux not installed. Install with: brew install tmux (macOS) or apt install tmux (Linux)"
+    });
+  });
+
+  // Launch an interactive run in tmux
+  app.post("/api/managed-sessions/run-interactive", async (c) => {
+    const body = (await c.req.json()) as Record<string, unknown>;
+
+    const prompt = String(body.prompt ?? "");
+    const agent = String(body.agent ?? "claude") as AgentType;
+    const cwd = String(body.cwd ?? process.cwd());
+
+    if (!prompt) {
+      return c.json({ error: "prompt is required" }, 400);
+    }
+
+    // Check if process runner is available
+    if (!state.processRunner) {
+      return c.json({ error: "Process runner not available" }, 503);
+    }
+
+    // Validate agent
+    if (!state.processRunner.isValidAgent(agent)) {
+      return c.json(
+        {
+          error: `Unknown agent: ${agent}`,
+          supported: state.processRunner.getSupportedAgents()
+        },
+        400
+      );
+    }
+
+    // Build principles injection if provided
+    let principlesInjection: string | undefined;
+    let principlesPath: string | undefined;
+    const selectedPrinciples = body.selected_principles as string[] | undefined;
+
+    if (selectedPrinciples && selectedPrinciples.length > 0) {
+      const principlesFile = getPrinciplesForProject(cwd);
+      if (principlesFile) {
+        principlesInjection = buildPrinciplesInjection(
+          selectedPrinciples,
+          principlesFile.principles
+        );
+        principlesPath = principlesFile.path;
+      }
+    }
+
+    const intentions = body.intentions as string | undefined;
+
+    // Create managed session
+    const session = state.sessionStore.createSession(prompt, agent, cwd);
+
+    // Create prediction if provided
+    let prediction: RunPrediction | undefined;
+    if (state.predictionStore && body.prediction) {
+      const pred = body.prediction as Record<string, unknown>;
+      prediction = state.predictionStore.createPrediction({
+        managedSessionId: session.id,
+        predictedDurationMinutes: Number(pred.duration_minutes ?? 15),
+        durationConfidence: String(
+          pred.duration_confidence ?? "medium"
+        ) as RunPrediction["durationConfidence"],
+        predictedTokens: Number(pred.tokens ?? 50000),
+        tokenConfidence: String(
+          pred.token_confidence ?? "medium"
+        ) as RunPrediction["tokenConfidence"],
+        successConditions: String(pred.success_conditions ?? ""),
+        intentions: intentions ?? "",
+        selectedPrinciples: selectedPrinciples,
+        principlesPath
+      });
+    }
+
+    // Spawn the interactive session in tmux
+    try {
+      const { tmuxSession, attachCommand } =
+        await state.processRunner.runInteractive({
+          sessionId: session.id,
+          prompt,
+          agent,
+          cwd,
+          principlesInjection,
+          intentions
+        });
+
+      return c.json(
+        {
+          session: managedSessionToDict(
+            state.sessionStore.getSession(session.id) ?? session
+          ),
+          prediction: prediction ? predictionToDict(prediction) : null,
+          tmux_session: tmuxSession,
+          attach_command: attachCommand,
+          interactive: true
+        },
+        201
+      );
+    } catch (error) {
+      // Mark session as failed if spawn fails
+      state.sessionStore.endSession(session.id, -1);
+      return c.json(
+        {
+          error: "Failed to spawn interactive session",
+          details: String(error)
+        },
+        500
+      );
+    }
+  });
+
+  // Get active tmux sessions
+  app.get("/api/command-center/tmux-sessions", async (c) => {
+    if (!state.processRunner) {
+      return c.json({ sessions: [] });
+    }
+
+    const sessions = await state.processRunner.getTmuxSessions();
+    return c.json({
+      sessions: sessions.map((s) => ({
+        session_id: s.sessionId,
+        tmux_session: s.tmuxSession,
+        attach_command: s.attachCommand,
+        started_at: s.startedAt,
+        is_running: s.isRunning
+      }))
+    });
+  });
+
+  // Kill a tmux session
+  app.delete("/api/command-center/tmux-sessions/:sessionId", async (c) => {
+    const sessionId = c.req.param("sessionId");
+
+    if (!state.processRunner) {
+      return c.json({ error: "Process runner not available" }, 503);
+    }
+
+    const killed = await state.processRunner.killTmuxSession(sessionId);
+    if (!killed) {
+      return c.json({ error: "Session not found or already ended" }, 404);
+    }
+
+    return c.json({ success: true });
+  });
+
   // ==========================================================================
   // Predictions API
   // ==========================================================================

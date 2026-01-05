@@ -30,7 +30,7 @@ class RequestCache {
   async fetch<T>(
     key: string,
     fetcher: () => Promise<T>,
-    ttl: number = 30000
+    ttl = 30000
   ): Promise<T> {
     // Return cached if fresh
     const cached = this.cache.get(key);
@@ -78,7 +78,7 @@ class RequestCache {
   /**
    * Check if a key has fresh cached data.
    */
-  isCached(key: string, ttl: number = 30000): boolean {
+  isCached(key: string, ttl = 30000): boolean {
     const cached = this.cache.get(key);
     return cached !== undefined && Date.now() - cached.timestamp < ttl;
   }
@@ -87,7 +87,7 @@ class RequestCache {
    * Get cached data without fetching.
    * Returns undefined if not cached or stale.
    */
-  getCached<T>(key: string, ttl: number = 30000): T | undefined {
+  getCached<T>(key: string, ttl = 30000): T | undefined {
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.timestamp < ttl) {
       return cached.data as T;

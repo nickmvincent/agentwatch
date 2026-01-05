@@ -1633,7 +1633,9 @@ export function registerEnrichmentEndpoints(
         max: b.max,
         count: b.count,
         percentage:
-          qualityTotal > 0 ? Math.round((b.count / qualityTotal) * 1000) / 10 : 0
+          qualityTotal > 0
+            ? Math.round((b.count / qualityTotal) * 1000) / 10
+            : 0
       })),
       percentiles: {
         p25: scores[Math.floor(scores.length * 0.25)] || 0,

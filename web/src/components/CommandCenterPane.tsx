@@ -59,13 +59,31 @@ export function CommandCenterPane({ managedSessions }: CommandCenterPaneProps) {
   // UI state
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [tmuxAvailable, setTmuxAvailable] = useState<boolean | null>(null);
+  const [interactiveMode, setInteractiveMode] = useState(false);
+  const [tmuxAttachCommand, setTmuxAttachCommand] = useState<string | null>(
+    null
+  );
 
   // Load initial data
   useEffect(() => {
     loadProjects();
     loadCalibrationStats();
     loadPredictions();
+    checkTmuxAvailable();
   }, []);
+
+  const checkTmuxAvailable = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/command-center/tmux-available`);
+      if (res.ok) {
+        const data = await res.json();
+        setTmuxAvailable(data.available);
+      }
+    } catch {
+      setTmuxAvailable(false);
+    }
+  };
 
   // Load principles when project changes
   useEffect(() => {
@@ -203,6 +221,71 @@ export function CommandCenterPane({ managedSessions }: CommandCenterPaneProps) {
       loadCalibrationStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to launch run");
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  const handleLaunchInteractive = async () => {
+    if (!prompt.trim()) {
+      setError("Please enter a prompt");
+      return;
+    }
+
+    const project = projects.find((p) => p.id === selectedProject);
+    const cwd = project?.paths[0] || process.cwd?.() || ".";
+
+    setLaunching(true);
+    setError(null);
+    setTmuxAttachCommand(null);
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/managed-sessions/run-interactive`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            agent: selectedAgent,
+            cwd,
+            intentions: intentions || undefined,
+            principlesInjection:
+              selectedPrinciples.size > 0
+                ? Array.from(selectedPrinciples)
+                : undefined,
+            prediction: {
+              predictedDurationMinutes: predictedDuration,
+              durationConfidence,
+              predictedTokens,
+              tokenConfidence,
+              successConditions,
+              intentions,
+              selectedPrinciples: Array.from(selectedPrinciples),
+              principlesPath: principlesPath || undefined
+            }
+          })
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to launch interactive session");
+      }
+
+      const data = await res.json();
+      setTmuxAttachCommand(data.attachCommand);
+
+      // Don't clear form - user might want to launch another
+      // Reload predictions
+      loadPredictions();
+      loadCalibrationStats();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to launch interactive session"
+      );
     } finally {
       setLaunching(false);
     }
@@ -456,16 +539,61 @@ export function CommandCenterPane({ managedSessions }: CommandCenterPaneProps) {
                 </div>
               )}
 
-              {/* Launch Button */}
-              <div className="pt-4 border-t border-gray-700">
+              {/* Launch Buttons */}
+              <div className="pt-4 border-t border-gray-700 space-y-3">
+                {/* Interactive mode toggle */}
+                {tmuxAvailable && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={interactiveMode}
+                      onChange={(e) => setInteractiveMode(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-cyan-500 focus:ring-cyan-500"
+                    />
+                    <span className="text-sm text-gray-300">
+                      Interactive mode (tmux)
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      - attach to terminal session
+                    </span>
+                  </label>
+                )}
+
                 <button
                   type="button"
-                  onClick={handleLaunch}
+                  onClick={
+                    interactiveMode ? handleLaunchInteractive : handleLaunch
+                  }
                   disabled={launching || !prompt.trim()}
                   className="w-full px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
                 >
-                  {launching ? "Launching..." : "Launch with Predictions"}
+                  {launching
+                    ? "Launching..."
+                    : interactiveMode
+                      ? "Launch Interactive Session"
+                      : "Launch with Predictions"}
                 </button>
+
+                {/* Tmux attach command display */}
+                {tmuxAttachCommand && (
+                  <div className="p-3 bg-gray-700/50 rounded border border-cyan-700/50">
+                    <div className="text-xs text-cyan-400 mb-1">
+                      Session started! Attach with:
+                    </div>
+                    <code className="text-sm text-white font-mono bg-gray-900 px-2 py-1 rounded block">
+                      {tmuxAttachCommand}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(tmuxAttachCommand);
+                      }}
+                      className="mt-2 text-xs text-cyan-400 hover:text-cyan-300"
+                    >
+                      Copy to clipboard
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
