@@ -506,6 +506,16 @@ function MyDataSection() {
         {loading && <span className="text-xs text-gray-400">Scanning...</span>}
       </div>
 
+      {/* Storage locations hint */}
+      {!stats && !loading && (
+        <div className="text-xs text-gray-500 mb-2">
+          Scans transcripts from:{" "}
+          <code className="text-gray-400">~/.claude/</code>,{" "}
+          <code className="text-gray-400">~/.codex/</code>,{" "}
+          <code className="text-gray-400">~/.gemini/</code>
+        </div>
+      )}
+
       {error && <div className="text-xs text-red-400 mb-2">{error}</div>}
 
       {stats && (

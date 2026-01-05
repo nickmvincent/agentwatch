@@ -91,6 +91,33 @@ export function ProjectsPane({ repos }: ProjectsPaneProps) {
     return stats;
   }, [projects, getReposForProject]);
 
+  // Find unassigned repos (dirty repos not matched to any project)
+  const unassignedDirtyRepos = useMemo(() => {
+    const assignedPaths = new Set<string>();
+    for (const project of projects) {
+      for (const path of project.paths) {
+        assignedPaths.add(path);
+      }
+    }
+    return repos.filter((repo) => {
+      if (!repo.dirty) return false;
+      // Check if this repo is matched to any project
+      for (const project of projects) {
+        if (
+          project.paths.some(
+            (path) =>
+              repo.path === path ||
+              repo.path.startsWith(path + "/") ||
+              path.startsWith(repo.path + "/")
+          )
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [repos, projects]);
+
   // Load projects and analytics
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -354,7 +381,7 @@ export function ProjectsPane({ repos }: ProjectsPaneProps) {
                         className="flex-1 text-xs text-gray-500 truncate font-mono"
                         title={path}
                       >
-                        {path.split("/").pop()}
+                        {path}
                       </div>
                       {repo && (
                         <div className="flex items-center gap-1.5 text-[10px] shrink-0">
@@ -434,6 +461,55 @@ export function ProjectsPane({ repos }: ProjectsPaneProps) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Unassigned Dirty Repos */}
+      {unassignedDirtyRepos.length > 0 && (
+        <div className="mt-6 bg-yellow-900/20 rounded-lg p-4 border border-yellow-700/50">
+          <h3 className="text-sm font-medium text-yellow-400 mb-3">
+            Unassigned Dirty Repositories ({unassignedDirtyRepos.length})
+          </h3>
+          <p className="text-xs text-gray-400 mb-3">
+            These repos have uncommitted changes but aren't matched to any
+            project. Add their paths to a project to track them.
+          </p>
+          <div className="space-y-2">
+            {unassignedDirtyRepos.map((repo) => (
+              <div
+                key={repo.repo_id}
+                className="flex items-center gap-3 p-2 bg-gray-800/50 rounded"
+              >
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-sm text-white truncate font-mono"
+                    title={repo.path}
+                  >
+                    {repo.path}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                    <span>{repo.branch}</span>
+                    <span className="text-yellow-400">
+                      {repo.staged + repo.unstaged + repo.untracked} changes
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setFormPaths(repo.path);
+                    setFormName(repo.name);
+                    setFormId("");
+                    setFormDescription("");
+                    setEditingProject(null);
+                    setIsCreating(true);
+                  }}
+                  className="px-2 py-1 text-xs bg-blue-600/50 hover:bg-blue-600 text-blue-200 rounded"
+                >
+                  Create Project
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

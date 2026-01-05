@@ -4718,6 +4718,24 @@ export function createApp(state: AppState): Hono {
     });
   });
 
+  app.get("/api/contrib/local-logs/:transcriptId/raw", async (c) => {
+    // Return raw transcript file content
+    const transcriptId = decodeURIComponent(c.req.param("transcriptId"));
+
+    const transcript = await readTranscript(transcriptId);
+    if (!transcript || !transcript.path) {
+      return c.json({ error: "Transcript not found" }, 404);
+    }
+
+    try {
+      const file = Bun.file(transcript.path);
+      const content = await file.text();
+      return c.text(content);
+    } catch {
+      return c.json({ error: "Failed to read source file" }, 500);
+    }
+  });
+
   app.post("/api/contrib/local-logs/read", async (c) => {
     // Read a transcript by file path (for direct file access)
     const body = (await c.req.json()) as { path: string; agent?: string };

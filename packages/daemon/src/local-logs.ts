@@ -645,15 +645,45 @@ export async function readTranscriptByPath(
             continue;
           }
 
-          // Parse message based on type
-          // Claude JSONL format has content in obj.message.content (can be string or array)
-          const rawContent = obj.content || obj.message?.content || "";
+          // Codex format: { timestamp, type, payload } where payload contains message data
+          // Claude format: message data at top level
+          const isCodexFormat = obj.payload !== undefined;
+          const payload = isCodexFormat ? obj.payload : obj;
+
+          // Skip non-message types in Codex format
+          if (isCodexFormat) {
+            // Only process response_item with type "message"
+            if (obj.type !== "response_item" || payload.type !== "message") {
+              continue;
+            }
+          }
+
+          // Parse message content
+          // Claude: obj.content or obj.message.content (string or array)
+          // Codex: payload.content (array of {type: "input_text"/"output_text", text: "..."})
+          let rawContent: string | { type: string; text?: string }[] = "";
+          if (isCodexFormat && Array.isArray(payload.content)) {
+            // Codex format: extract text from content array
+            rawContent = (payload.content as { text?: string }[])
+              .map((item) => item.text || "")
+              .filter((t) => t)
+              .join("\n");
+          } else {
+            rawContent = payload.content || obj.message?.content || "";
+          }
+
           const msg: TranscriptMessage = {
-            uuid: obj.uuid || obj.id || String(messages.length),
-            parentUuid: obj.parentUuid || null,
-            type: obj.type || "unknown",
-            subtype: obj.subtype,
+            uuid:
+              payload.uuid ||
+              payload.id ||
+              obj.uuid ||
+              obj.id ||
+              String(messages.length),
+            parentUuid: payload.parentUuid || obj.parentUuid || null,
+            type: isCodexFormat ? payload.type : obj.type || "unknown",
+            subtype: payload.subtype || obj.subtype,
             role:
+              payload.role ||
               obj.role ||
               obj.message?.role ||
               (obj.type === "user"
@@ -664,33 +694,41 @@ export async function readTranscriptByPath(
             content: rawContent,
             timestamp: obj.timestamp || new Date().toISOString(),
             // Track sidechain messages (sub-agent conversations)
-            isSidechain: obj.isSidechain === true,
-            agentId: obj.agentId
+            isSidechain:
+              payload.isSidechain === true || obj.isSidechain === true,
+            agentId: payload.agentId || obj.agentId
           };
 
           // Extract tool info
-          if (obj.toolName || obj.tool_name) {
-            msg.toolName = obj.toolName || obj.tool_name;
-            msg.toolInput = obj.toolInput || obj.tool_input || obj.input;
+          const toolSource = isCodexFormat ? payload : obj;
+          if (toolSource.toolName || toolSource.tool_name) {
+            msg.toolName = toolSource.toolName || toolSource.tool_name;
+            msg.toolInput =
+              toolSource.toolInput || toolSource.tool_input || toolSource.input;
           }
-          if (obj.toolResult !== undefined || obj.tool_result !== undefined) {
-            msg.toolResult = obj.toolResult ?? obj.tool_result;
+          if (
+            toolSource.toolResult !== undefined ||
+            toolSource.tool_result !== undefined
+          ) {
+            msg.toolResult = toolSource.toolResult ?? toolSource.tool_result;
           }
 
           // Extract token usage
-          if (obj.message?.usage) {
-            msg.inputTokens = obj.message.usage.input_tokens;
-            msg.outputTokens = obj.message.usage.output_tokens;
-            msg.cacheCreationTokens =
-              obj.message.usage.cache_creation_input_tokens;
-            msg.cacheReadTokens = obj.message.usage.cache_read_input_tokens;
+          const usageSource = isCodexFormat
+            ? payload.usage
+            : obj.message?.usage;
+          if (usageSource) {
+            msg.inputTokens = usageSource.input_tokens;
+            msg.outputTokens = usageSource.output_tokens;
+            msg.cacheCreationTokens = usageSource.cache_creation_input_tokens;
+            msg.cacheReadTokens = usageSource.cache_read_input_tokens;
             totalInputTokens += msg.inputTokens || 0;
             totalOutputTokens += msg.outputTokens || 0;
           }
 
           // Extract model
-          if (obj.model || obj.message?.model) {
-            msg.model = obj.model || obj.message?.model;
+          if (payload.model || obj.model || obj.message?.model) {
+            msg.model = payload.model || obj.model || obj.message?.model;
           }
 
           messages.push(msg);
