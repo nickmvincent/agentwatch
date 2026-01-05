@@ -10,6 +10,7 @@ import { PortsPane } from "./components/PortsPane";
 import { ProjectsPane } from "./components/ProjectsPane";
 import { SettingsPane } from "./components/SettingsPane";
 import { ConversationProvider } from "./context/ConversationContext";
+import { DataProvider } from "./context/DataProvider";
 import { useWebSocket } from "./hooks/useWebSocket";
 
 type Tab =
@@ -246,8 +247,9 @@ function App() {
   }, [hiddenTabs, activeTab]);
 
   return (
-    <ConversationProvider>
-      <div className="min-h-screen bg-gray-900 text-gray-100">
+    <DataProvider>
+      <ConversationProvider>
+        <div className="min-h-screen bg-gray-900 text-gray-100">
         <Header
           connected={connected}
           repoCount={repos.length}
@@ -622,8 +624,9 @@ function App() {
             </div>
           </div>
         )}
-      </div>
-    </ConversationProvider>
+        </div>
+      </ConversationProvider>
+    </DataProvider>
   );
 }
 
