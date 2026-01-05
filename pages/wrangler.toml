@@ -1,0 +1,12 @@
+name = "agentwatch-donate"
+pages_build_output_dir = "dist"
+
+# Environment variables can be set here or in the Cloudflare dashboard
+# [vars]
+# HF_REPO = "your-org/your-dataset"
+# ALLOWED_REPOS = "org/repo1,org/repo2"
+# MAX_UPLOAD_BYTES = "50000000"
+# MAX_FILE_BYTES = "20000000"
+
+# For production secrets, use wrangler secret put or dashboard
+# HF_TOKEN - Server-side bot token for PR creation

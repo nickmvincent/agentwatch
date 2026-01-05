@@ -1,0 +1,43 @@
+{
+  "name": "agentwatch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nickmvincent/agentwatch.git"
+  },
+  "homepage": "https://github.com/nickmvincent/agentwatch",
+  "bugs": "https://github.com/nickmvincent/agentwatch/issues",
+  "author": "agentwatch contributors",
+  "license": "MIT",
+  "workspaces": ["packages/*", "web", "pages"],
+  "scripts": {
+    "build": "bun run build:packages && bun run build:web && bun run build:pages",
+    "build:packages": "bun run --filter './packages/*' build",
+    "build:web": "bun run --cwd web build",
+    "build:pages": "bun run --cwd pages build",
+    "dev": "bun run dev:daemon & bun run dev:web",
+    "dev:debug": "bun run dev:daemon:debug & bun run dev:web",
+    "dev:daemon": "bun run --cwd packages/daemon dev",
+    "dev:daemon:debug": "bun run --cwd packages/daemon dev:debug",
+    "dev:web": "bun run --cwd web dev",
+    "dev:pages": "bun run --cwd pages dev",
+    "daemon:rebuild": "bun run build:packages && aw daemon restart",
+    "test": "bun test packages/",
+    "test:e2e": "playwright test --project=pages",
+    "test:screenshots": "TEST_TARGET=web playwright test --project=dashboard",
+    "test:screenshots:view": "open e2e/screenshots",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "tsc -b"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "@biomejs/biome": "^1.9.4",
+    "@playwright/test": "^1.57.0",
+    "@types/bun": "^1.1.14",
+    "fflate": "^0.8.2",
+    "typescript": "^5.7.2"
+  }
+}

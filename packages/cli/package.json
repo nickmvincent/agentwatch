@@ -1,0 +1,26 @@
+{
+  "name": "@agentwatch/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "aw": "./src/bin.ts",
+    "agentwatch": "./src/bin.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "bun --watch src/bin.ts",
+    "start": "bun src/bin.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentwatch/daemon": "workspace:*",
+    "commander": "^13.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/bun": "^1.1.14"
+  }
+}

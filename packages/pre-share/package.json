@@ -1,0 +1,67 @@
+{
+  "name": "@agentwatch/pre-share",
+  "version": "0.1.0",
+  "description": "Sanitization, field stripping, and preparation pipeline for sharing coding agent transcripts",
+  "type": "module",
+  "main": "dist/index.js",
+  "browser": "dist/browser/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": "./dist/browser/index.js",
+      "bun": "./dist/index.js",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./sanitizer": {
+      "browser": "./dist/browser/sanitizer/index.js",
+      "import": "./dist/sanitizer/index.js",
+      "types": "./dist/sanitizer/index.d.ts"
+    },
+    "./fields": {
+      "browser": "./dist/browser/fields/index.js",
+      "import": "./dist/fields/index.js",
+      "types": "./dist/fields/index.d.ts"
+    },
+    "./pipeline": {
+      "browser": "./dist/browser/pipeline/index.js",
+      "import": "./dist/pipeline/index.js",
+      "types": "./dist/pipeline/index.d.ts"
+    },
+    "./output": {
+      "browser": "./dist/browser/output/index.js",
+      "import": "./dist/output/index.js",
+      "types": "./dist/output/index.d.ts"
+    },
+    "./patterns": {
+      "browser": "./dist/browser/patterns/index.js",
+      "import": "./dist/patterns/index.js",
+      "types": "./dist/patterns/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun && bun build ./src/index.ts --outdir ./dist/browser --target browser --splitting && tsc --emitDeclarationOnly",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/bun": "^1.1.14"
+  },
+  "keywords": [
+    "sanitization",
+    "redaction",
+    "privacy",
+    "transcript",
+    "pii",
+    "api-keys"
+  ]
+}

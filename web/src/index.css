@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.output-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Markdown content styles */
+.markdown-content h1:first-child {
+  margin-top: 0;
+}
+
+.markdown-content pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.markdown-content table {
+  border: 1px solid #374151;
+}
+
+.markdown-content th {
+  background: #1f2937;
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Details/Summary collapsible sections */
+.markdown-content details[open] .details-arrow {
+  transform: rotate(90deg);
+}
+
+.markdown-content details summary::-webkit-details-marker {
+  display: none;
+}
+
+.markdown-content details summary::marker {
+  display: none;
+}
+
+.markdown-content details summary {
+  list-style: none;
+}

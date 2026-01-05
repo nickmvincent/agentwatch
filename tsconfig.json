@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@agentwatch/core": ["packages/core/src"],
+      "@agentwatch/core/*": ["packages/core/src/*"],
+      "@agentwatch/monitor": ["packages/monitor/src"],
+      "@agentwatch/monitor/*": ["packages/monitor/src/*"],
+      "@agentwatch/daemon": ["packages/daemon/src"],
+      "@agentwatch/daemon/*": ["packages/daemon/src/*"],
+      "@agentwatch/pre-share": ["packages/pre-share/src"],
+      "@agentwatch/pre-share/*": ["packages/pre-share/src/*"]
+    }
+  },
+  "files": [],
+  "include": [],
+  "exclude": ["**/dist/**", "**/node_modules/**"],
+  "references": [
+    { "path": "packages/pre-share" },
+    { "path": "packages/core" },
+    { "path": "packages/monitor" },
+    { "path": "packages/daemon" },
+    { "path": "packages/cli" },
+    { "path": "packages/tui" },
+    { "path": "packages/ui" },
+    { "path": "web" }
+  ]
+}

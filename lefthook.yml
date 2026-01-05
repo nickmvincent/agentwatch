@@ -1,0 +1,11 @@
+# Lefthook config - runs checks before push to catch CI failures locally
+# Install: brew install lefthook && lefthook install
+# Docs: https://github.com/evilmartians/lefthook
+
+pre-push:
+  parallel: false
+  commands:
+    lint:
+      run: bun run lint
+    typecheck:
+      run: bun run typecheck

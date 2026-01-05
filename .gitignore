@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+*.egg-info/
+.coverage
+.pytest_cache/
+.claude/
+node_modules/
+build/
+dist/
+.astro/
+*.tsbuildinfo
+package-lock.json
+
+# Playwright
+e2e/screenshots/*.png
+e2e/test-results/
+playwright-report/
+test-results/

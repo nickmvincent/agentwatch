@@ -1,0 +1,37 @@
+{
+  "name": "@agentwatch/pages",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run build:worker && astro dev",
+    "build": "bun run build:worker && astro build",
+    "build:worker": "mkdir -p public/workers && bun build src/workers/processor.ts --outfile=public/workers/processor.js --target=browser",
+    "preview": "astro preview",
+    "deploy": "wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "@agentwatch/pre-share": "workspace:*",
+    "@agentwatch/ui": "workspace:*",
+    "@astrojs/react": "^3.6.0",
+    "@astrojs/tailwind": "^5.1.0",
+    "@huggingface/hub": "^0.18.0",
+    "astro": "^4.16.0",
+    "diff-match-patch": "^1.0.5",
+    "fflate": "^0.8.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "@tailwindcss/typography": "^0.5.10",
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^3.99.0"
+  }
+}

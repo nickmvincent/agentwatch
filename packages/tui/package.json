@@ -1,0 +1,25 @@
+{
+  "name": "@agentwatch/tui",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "agentwatch-tui": "./src/bin.tsx"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "bun --watch src/bin.tsx",
+    "start": "bun src/bin.tsx",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ink": "^5.1.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/bun": "^1.1.14",
+    "@types/react": "^18.3.12"
+  }
+}
