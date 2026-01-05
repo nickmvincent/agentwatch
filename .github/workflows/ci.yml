@@ -37,6 +37,7 @@ jobs:
         run: |
           bun run --filter '@agentwatch/pre-share' build
           bun run --filter '@agentwatch/core' build
+          bun run --filter '@agentwatch/transcript-parser' build
           bun run --filter '@agentwatch/monitor' build
           bun run --filter '@agentwatch/daemon' build
           bun run --filter '@agentwatch/cli' --filter '@agentwatch/tui' --filter '@agentwatch/ui' build
@@ -74,6 +75,7 @@ jobs:
         run: |
           bun run --filter '@agentwatch/pre-share' build
           bun run --filter '@agentwatch/core' build
+          bun run --filter '@agentwatch/transcript-parser' build
           bun run --filter '@agentwatch/monitor' build
           bun run --filter '@agentwatch/daemon' build
           bun run --filter '@agentwatch/cli' --filter '@agentwatch/tui' --filter '@agentwatch/ui' build

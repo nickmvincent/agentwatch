@@ -10,7 +10,9 @@
       "@agentwatch/daemon": ["packages/daemon/src"],
       "@agentwatch/daemon/*": ["packages/daemon/src/*"],
       "@agentwatch/pre-share": ["packages/pre-share/src"],
-      "@agentwatch/pre-share/*": ["packages/pre-share/src/*"]
+      "@agentwatch/pre-share/*": ["packages/pre-share/src/*"],
+      "@agentwatch/transcript-parser": ["packages/transcript-parser/src"],
+      "@agentwatch/transcript-parser/*": ["packages/transcript-parser/src/*"]
     }
   },
   "files": [],
@@ -19,6 +21,7 @@
   "references": [
     { "path": "packages/pre-share" },
     { "path": "packages/core" },
+    { "path": "packages/transcript-parser" },
     { "path": "packages/monitor" },
     { "path": "packages/daemon" },
     { "path": "packages/cli" },

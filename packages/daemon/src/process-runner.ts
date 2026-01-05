@@ -254,27 +254,19 @@ export class ProcessRunner {
       );
     }
 
-    // Verify cwd exists
+    // Verify cwd exists and is a directory
     try {
-      const cwdFile = Bun.file(cwd);
-      const cwdStat = await cwdFile.exists();
-      if (!cwdStat) {
-        throw new Error(`Working directory does not exist: ${cwd}`);
+      const { statSync } = await import("fs");
+      const stats = statSync(cwd);
+      if (!stats.isDirectory()) {
+        throw new Error(`Working directory is not a directory: ${cwd}`);
       }
     } catch (e) {
-      if (e instanceof Error && e.message.includes("does not exist")) {
+      if (e instanceof Error && e.message.includes("is not a directory")) {
         throw e;
       }
-      // Check if it's a directory using stat
-      try {
-        const proc = Bun.spawn(["test", "-d", cwd]);
-        const exitCode = await proc.exited;
-        if (exitCode !== 0) {
-          throw new Error(`Working directory is not a directory: ${cwd}`);
-        }
-      } catch {
-        throw new Error(`Cannot verify working directory: ${cwd}`);
-      }
+      // statSync throws ENOENT if path doesn't exist
+      throw new Error(`Working directory does not exist: ${cwd}`);
     }
 
     // Build command args with resolved path
