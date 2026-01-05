@@ -1,0 +1,45 @@
+{
+  "name": "@agentwatch/transcript-parser",
+  "version": "0.1.0",
+  "description": "Standalone transcript parser for AI coding assistants (Claude, Codex, Gemini)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "transcript-parser": "./bin/transcript-parser"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "bin"],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun && bun run build:types",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "dev": "bun --watch src/cli.ts",
+    "test": "bun test",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "transcript",
+    "parser",
+    "claude",
+    "codex",
+    "gemini",
+    "ai",
+    "coding-assistant"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nickmvincent/agentwatch.git",
+    "directory": "packages/transcript-parser"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  }
+}
