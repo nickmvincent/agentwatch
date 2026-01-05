@@ -53,7 +53,6 @@ export function ChatViewer({
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(
     new Set()
   );
-  const [showLogPaths, setShowLogPaths] = useState(false);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [sourceJson, setSourceJson] = useState<string | null>(null);
   const [sourceLoading, setSourceLoading] = useState(false);
@@ -306,17 +305,6 @@ export function ChatViewer({
               🔀 {showSidechain ? "Hide" : "Show"} Sub-agents ({sidechainCount})
             </button>
           )}
-          <button
-            onClick={() => setShowLogPaths(!showLogPaths)}
-            className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
-              showLogPaths
-                ? "bg-green-600 text-white"
-                : "bg-gray-700 text-gray-300"
-            }`}
-            title="Show raw log file paths"
-          >
-            📂 Logs
-          </button>
           {/* View mode selector */}
           <div className="flex items-center gap-1 bg-gray-700 rounded p-0.5">
             <button
@@ -374,63 +362,6 @@ export function ChatViewer({
           )}
         </div>
       </div>
-
-      {/* Raw Log Paths Panel */}
-      {showLogPaths && (
-        <div className="px-4 py-3 border-b border-gray-700 bg-gray-900/50 space-y-2">
-          <div className="text-xs text-gray-400 mb-2">
-            Raw log file paths for full transparency:
-          </div>
-
-          {/* Transcript Path */}
-          {transcript.path && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 w-28 flex-shrink-0">
-                Claude transcript:
-              </span>
-              <code className="text-xs text-green-400 bg-gray-800 px-2 py-1 rounded flex-1 truncate font-mono">
-                {transcript.path}
-              </code>
-              <button
-                onClick={() => handleCopyPath(transcript.path, "transcript")}
-                className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-colors ${
-                  copiedPath === "transcript"
-                    ? "bg-green-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-              >
-                {copiedPath === "transcript" ? "✓ Copied" : "📋 Copy"}
-              </button>
-            </div>
-          )}
-
-          {/* Agentwatch Hooks Directory */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 w-28 flex-shrink-0">
-              Agentwatch hooks:
-            </span>
-            <code className="text-xs text-blue-400 bg-gray-800 px-2 py-1 rounded flex-1 truncate font-mono">
-              ~/.agentwatch/hooks/
-            </code>
-            <button
-              onClick={() => handleCopyPath("~/.agentwatch/hooks/", "hooks")}
-              className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-colors ${
-                copiedPath === "hooks"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              {copiedPath === "hooks" ? "✓ Copied" : "📋 Copy"}
-            </button>
-          </div>
-
-          {/* Session-specific JSONL hint */}
-          <div className="text-xs text-gray-500 mt-1">
-            Hook data: <code className="text-gray-400">sessions_*.jsonl</code>{" "}
-            and <code className="text-gray-400">tool_usages_*.jsonl</code>
-          </div>
-        </div>
-      )}
 
       {/* Content area - JSON views or messages */}
       {viewMode === "json-agentwatch" ? (

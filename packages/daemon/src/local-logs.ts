@@ -659,17 +659,37 @@ export async function readTranscriptByPath(
           }
 
           // Parse message content
-          // Claude: obj.content or obj.message.content (string or array)
+          // Claude: obj.content (string) or obj.message.content (array of {type, text/thinking})
           // Codex: payload.content (array of {type: "input_text"/"output_text", text: "..."})
-          let rawContent: string | { type: string; text?: string }[] = "";
+          let rawContent = "";
           if (isCodexFormat && Array.isArray(payload.content)) {
             // Codex format: extract text from content array
             rawContent = (payload.content as { text?: string }[])
               .map((item) => item.text || "")
               .filter((t) => t)
               .join("\n");
+          } else if (Array.isArray(obj.message?.content)) {
+            // Claude assistant format: array of {type: "text"/"thinking", text/thinking: "..."}
+            rawContent = (
+              obj.message.content as {
+                type: string;
+                text?: string;
+                thinking?: string;
+              }[]
+            )
+              .map((item) => item.text || item.thinking || "")
+              .filter((t) => t)
+              .join("\n");
           } else {
-            rawContent = payload.content || obj.message?.content || "";
+            // String content (Claude user messages, system messages)
+            rawContent =
+              typeof payload.content === "string"
+                ? payload.content
+                : typeof obj.content === "string"
+                  ? obj.content
+                  : typeof obj.message?.content === "string"
+                    ? obj.message.content
+                    : "";
           }
 
           const msg: TranscriptMessage = {

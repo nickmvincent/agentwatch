@@ -13,7 +13,7 @@ import type { SessionStore } from "@agentwatch/monitor";
 /** Supported agent types */
 export type AgentType = "claude" | "codex" | "gemini";
 
-/** Agent command configurations */
+/** Agent command configurations (relative names - will be resolved to full paths) */
 export const AGENT_COMMANDS: Record<
   AgentType,
   { interactive: string[]; print: string[] }
@@ -31,6 +31,79 @@ export const AGENT_COMMANDS: Record<
     print: ["gemini"]
   }
 };
+
+/** Cache for resolved binary paths */
+const resolvedBinaryPaths: Map<string, string | null> = new Map();
+
+/**
+ * Resolve a binary name to its full path using common installation locations.
+ * Caches results for efficiency.
+ */
+async function resolveBinaryPath(binaryName: string): Promise<string | null> {
+  if (resolvedBinaryPaths.has(binaryName)) {
+    return resolvedBinaryPaths.get(binaryName)!;
+  }
+
+  // Common paths where CLI tools are installed
+  const searchPaths = [
+    `/opt/homebrew/bin/${binaryName}`,
+    `/usr/local/bin/${binaryName}`,
+    `${process.env.HOME}/.bun/bin/${binaryName}`,
+    `${process.env.HOME}/.local/bin/${binaryName}`,
+    `${process.env.HOME}/.nvm/versions/node/*/bin/${binaryName}`,
+    `/usr/bin/${binaryName}`
+  ];
+
+  for (const path of searchPaths) {
+    // Handle glob patterns in paths
+    if (path.includes("*")) {
+      try {
+        const glob = new Bun.Glob(path);
+        for await (const match of glob.scan({ absolute: true })) {
+          const file = Bun.file(match);
+          if (await file.exists()) {
+            resolvedBinaryPaths.set(binaryName, match);
+            return match;
+          }
+        }
+      } catch {
+        // Ignore glob errors
+      }
+    } else {
+      try {
+        const file = Bun.file(path);
+        if (await file.exists()) {
+          resolvedBinaryPaths.set(binaryName, path);
+          return path;
+        }
+      } catch {
+        // Ignore file check errors
+      }
+    }
+  }
+
+  // Try using 'which' as fallback (works if PATH is set)
+  try {
+    const proc = Bun.spawn(["which", binaryName], {
+      stdout: "pipe",
+      stderr: "pipe"
+    });
+    const exitCode = await proc.exited;
+    if (exitCode === 0 && proc.stdout) {
+      const output = await new Response(proc.stdout).text();
+      const path = output.trim();
+      if (path) {
+        resolvedBinaryPaths.set(binaryName, path);
+        return path;
+      }
+    }
+  } catch {
+    // Ignore which errors
+  }
+
+  resolvedBinaryPaths.set(binaryName, null);
+  return null;
+}
 
 /** Options for launching a run */
 export interface RunOptions {
@@ -133,6 +206,23 @@ export class ProcessRunner {
   }
 
   /**
+   * Get list of available agents (installed and found on system).
+   */
+  async getAvailableAgents(): Promise<
+    { agent: AgentType; path: string; available: true }[]
+  > {
+    const available: { agent: AgentType; path: string; available: true }[] = [];
+    for (const agent of this.getSupportedAgents()) {
+      const binaryName = AGENT_COMMANDS[agent].print[0] as string;
+      const path = await resolveBinaryPath(binaryName);
+      if (path) {
+        available.push({ agent, path, available: true });
+      }
+    }
+    return available;
+  }
+
+  /**
    * Launch an agent run (always print mode from web).
    * Returns immediately; monitors completion in background.
    */
@@ -153,7 +243,19 @@ export class ProcessRunner {
 
     // Get agent command (always print mode for web)
     const agentConfig = AGENT_COMMANDS[agent];
-    const cmdArgs = [...agentConfig.print, fullPrompt];
+    const binaryName = agentConfig.print[0] as string;
+
+    // Resolve binary to full path (daemon may not have user's PATH)
+    const binaryPath = await resolveBinaryPath(binaryName);
+    if (!binaryPath) {
+      throw new Error(
+        `Agent '${agent}' not found. Searched common paths for '${binaryName}'. ` +
+          `Please ensure the agent CLI is installed.`
+      );
+    }
+
+    // Build command args with resolved path
+    const cmdArgs = [binaryPath, ...agentConfig.print.slice(1), fullPrompt];
 
     // Spawn the process
     const startedAt = Date.now();

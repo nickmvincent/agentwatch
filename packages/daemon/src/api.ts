@@ -2151,14 +2151,20 @@ export function createApp(state: AppState): Hono {
     }
   });
 
-  // Get supported agents
-  app.get("/api/command-center/agents", (c) => {
-    const agents = state.processRunner?.getSupportedAgents() ?? [
-      "claude",
-      "codex",
-      "gemini"
-    ];
-    return c.json({ agents });
+  // Get available agents (checks if installed on system)
+  app.get("/api/command-center/agents", async (c) => {
+    if (state.processRunner) {
+      const available = await state.processRunner.getAvailableAgents();
+      return c.json({
+        agents: available.map((a) => a.agent),
+        details: available
+      });
+    }
+    // Fallback if processRunner not ready
+    return c.json({
+      agents: ["claude", "codex", "gemini"],
+      details: []
+    });
   });
 
   // ==========================================================================

@@ -1350,8 +1350,9 @@ export function ConversationsPane({ onNavigateToTab }: ConversationsPaneProps) {
                         ? "bg-blue-600 text-white"
                         : "text-gray-400 hover:text-white hover:bg-gray-700"
                     }`}
+                    title="Conversation overview and quality scores"
                   >
-                    Data
+                    Overview
                   </button>
                   <button
                     onClick={() => setViewMode("chat")}
