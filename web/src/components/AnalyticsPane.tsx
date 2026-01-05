@@ -717,9 +717,22 @@ export function AnalyticsPane({
           </button>
         </p>
         {dashboard?.sources && (
-          <p className="text-xs text-gray-500 mt-1">
-            Sources: {dashboard.sources.hook_sessions} hook sessions,{" "}
-            {dashboard.sources.local_transcripts} transcripts
+          <p className="text-xs text-gray-500 mt-1 flex items-center gap-3">
+            <span>
+              Sources: {dashboard.sources.hook_sessions} hook sessions,{" "}
+              {dashboard.sources.local_transcripts} transcripts
+            </span>
+            <span className="text-gray-600">|</span>
+            <span title="Hook sessions and tool usage data">
+              <code className="bg-gray-700/50 px-1 rounded">
+                ~/.agentwatch/hooks/
+              </code>
+            </span>
+            <span title="Enrichments and quality scores">
+              <code className="bg-gray-700/50 px-1 rounded">
+                ~/.agentwatch/enrichments/
+              </code>
+            </span>
           </p>
         )}
       </div>

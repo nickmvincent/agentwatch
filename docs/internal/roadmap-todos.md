@@ -858,6 +858,26 @@ Please test and report on:
   - Documents Claude, Codex, Gemini, OpenCode transcript formats
   - No deletion needed - useful as reference API
 
+### Self-Documenting UI Initiative 🆕
+
+Goal: Move routine reference info into the UI itself, reducing reliance on external docs.
+
+**Quick wins:**
+- [ ] **Config option tooltips** - Add info icons to SettingsPane toggles/inputs with descriptions from `configuration.md`
+- [ ] **Data storage footers** - Add "Data stored in: X" to ConversationsPane, AnalyticsPane, etc.
+- [ ] **Hook type descriptions** - Show SessionStart/PreToolUse/PostToolUse explanations in HooksPane
+
+**Medium effort:**
+- [ ] **API browser endpoint** - Create `/api/reference/endpoints` returning endpoint metadata
+- [ ] **API browser UI** - Component showing live endpoint docs (descriptions, params, response schemas)
+- [ ] **Field schema popovers** - Show type info in ContribPane when selecting fields for export
+- [ ] **Enrichment field glossary** - Tooltips explaining auto-tags, quality scores, loop detection
+
+**Philosophy:**
+- UI explains itself → docs become tutorials/architecture only
+- "Where is data stored?" answered in-context, not in markdown
+- API reference auto-generated from code, not maintained separately
+
 ### Medium Priority (Polish)
 
 - [ ] **Add contribution stats dashboard**

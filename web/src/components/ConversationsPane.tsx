@@ -738,19 +738,31 @@ export function ConversationsPane({ onNavigateToTab }: ConversationsPaneProps) {
 
   return (
     <div className="space-y-4">
-      {/* Settings reference note */}
-      <div className="text-xs text-gray-500 flex items-center gap-2">
-        <span>Data shown based on transcript days setting in</span>
-        <button
-          onClick={() => {
-            // Navigate to settings tab
-            const event = new KeyboardEvent("keydown", { key: "9" });
-            window.dispatchEvent(event);
-          }}
-          className="text-blue-400 hover:text-blue-300 underline"
-        >
-          Settings
-        </button>
+      {/* Data sources info */}
+      <div className="text-xs text-gray-500 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span>Data shown based on transcript days setting in</span>
+          <button
+            onClick={() => {
+              // Navigate to settings tab
+              const event = new KeyboardEvent("keydown", { key: "9" });
+              window.dispatchEvent(event);
+            }}
+            className="text-blue-400 hover:text-blue-300 underline"
+          >
+            Settings
+          </button>
+        </div>
+        <div className="flex items-center gap-3 text-gray-600">
+          <span title="Hook sessions and tool usage data">
+            <code className="bg-gray-700/50 px-1 rounded">
+              ~/.agentwatch/hooks/
+            </code>
+          </span>
+          <span title="Claude Code transcripts">
+            <code className="bg-gray-700/50 px-1 rounded">~/.claude/</code>
+          </span>
+        </div>
       </div>
 
       <div className="flex gap-6 h-[calc(100vh-240px)]">

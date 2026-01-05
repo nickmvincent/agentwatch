@@ -11,6 +11,7 @@ import type {
   ToolStats,
   ToolUsage
 } from "../api/types";
+import { HOOK_DESCRIPTIONS, HookTypeInfo } from "./ui/InfoTooltip";
 
 interface SessionTokens {
   inputTokens: number;
@@ -325,25 +326,42 @@ export function HooksPane({
           <summary className="cursor-pointer hover:text-gray-300">
             ℹ️ About this data
           </summary>
-          <div className="mt-2 p-3 bg-gray-700/50 rounded space-y-1">
-            <p>
-              <strong>Source:</strong> Claude Code hooks (PreToolUse,
-              PostToolUse, Stop, etc.)
-            </p>
-            <p>
-              <strong>Requirements:</strong> Install agentwatch hooks via{" "}
-              <code className="bg-gray-800 px-1 rounded">aw hooks install</code>
-            </p>
-            <p>
-              <strong>Persistent logs:</strong>{" "}
-              <code className="bg-gray-800 px-1 rounded">
-                ~/.agentwatch/hooks/
-              </code>
-            </p>
-            <p>
-              <strong>Tracks:</strong> Tool calls, sessions, token usage,
-              permissions, and subagent activity
-            </p>
+          <div className="mt-2 p-3 bg-gray-700/50 rounded space-y-3">
+            <div className="space-y-1">
+              <p>
+                <strong>Source:</strong> Claude Code hooks
+              </p>
+              <p>
+                <strong>Requirements:</strong> Install agentwatch hooks via{" "}
+                <code className="bg-gray-800 px-1 rounded">
+                  aw hooks install
+                </code>
+              </p>
+              <p>
+                <strong>Persistent logs:</strong>{" "}
+                <code className="bg-gray-800 px-1 rounded">
+                  ~/.agentwatch/hooks/
+                </code>
+              </p>
+            </div>
+            <div>
+              <p className="font-medium text-gray-300 mb-2">Hook Types:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {Object.entries(HOOK_DESCRIPTIONS).map(([type, info]) => (
+                  <div
+                    key={type}
+                    className="flex items-start gap-2 p-1.5 bg-gray-800/50 rounded"
+                  >
+                    <span className="text-blue-400 font-mono text-[11px] shrink-0 w-24">
+                      {type}
+                    </span>
+                    <span className="text-gray-400 text-[11px]">
+                      {info.summary}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </details>
 
@@ -1349,12 +1367,7 @@ function RulesOverview({ rules }: { rules: RulesListResult }) {
           <div className="text-xs text-gray-400 mb-1">Hooks with rules:</div>
           <div className="flex flex-wrap gap-1">
             {Array.from(hookTypesCovered).map((hookType) => (
-              <span
-                key={hookType}
-                className="text-xs px-2 py-0.5 bg-purple-900/30 text-purple-300 rounded"
-              >
-                {hookType}
-              </span>
+              <HookTypeInfo key={hookType} hookType={hookType} asBadge />
             ))}
           </div>
         </div>
