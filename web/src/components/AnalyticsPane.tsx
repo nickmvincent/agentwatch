@@ -1595,8 +1595,8 @@ export function AnalyticsPane({
         <TransparencyDetails
           label="How token breakdowns are calculated"
           calculations={[
-            "Total tokens are input + output tokens for hook sessions in range.",
-            "USD shown is estimatedCostUsd from hook sessions (rough estimate).",
+            "Total tokens are input + output tokens for hook sessions plus local transcripts in range (when usage is available).",
+            "USD shown is a rough estimate derived from token counts.",
             "Token breakdown by task type uses autoTags.taskType from enrichments; avg_cost_usd = total_cost_usd / session_count.",
             "Bar width scales each task type by total tokens / max(total tokens).",
             "Project totals come from /analytics/by-project and include unassigned sessions."

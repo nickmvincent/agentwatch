@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentPane } from "./components/AgentPane";
 import { AnalyticsPane } from "./components/AnalyticsPane";
+import { CommandCenterPane } from "./components/CommandCenterPane";
 import { ContribPane } from "./components/ContribPane";
 import { ConversationsPane } from "./components/ConversationsPane";
 import { DocumentationPane } from "./components/DocumentationPane";
@@ -18,6 +19,7 @@ type Tab =
   | "conversations"
   | "analytics"
   | "contrib"
+  | "command"
   | "docs"
   | "settings";
 type HideableTab = "ports";
@@ -210,9 +212,12 @@ function App() {
           setActiveTab("contrib");
           break;
         case "6":
-          setActiveTab("docs");
+          setActiveTab("command");
           break;
         case "7":
+          setActiveTab("docs");
+          break;
+        case "8":
           setActiveTab("settings");
           break;
         case "Escape":
@@ -350,6 +355,16 @@ function App() {
                 }`}
               >
                 Share
+              </button>
+              <button
+                onClick={() => setActiveTab("command")}
+                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                  activeTab === "command"
+                    ? "border-cyan-500 text-cyan-400"
+                    : "border-transparent text-gray-400 hover:text-gray-300"
+                }`}
+              >
+                Command
               </button>
 
               {/* Separator */}
@@ -509,6 +524,10 @@ function App() {
             <ContribPane onNavigateToTab={(tab) => setActiveTab(tab as Tab)} />
           )}
 
+          {activeTab === "command" && (
+            <CommandCenterPane managedSessions={managedSessions} />
+          )}
+
           {activeTab === "docs" && <DocumentationPane />}
 
           {activeTab === "settings" && (
@@ -570,7 +589,7 @@ function App() {
               <div className="space-y-2 text-sm">
                 <div className="text-gray-400 font-medium mt-2">Navigation</div>
                 <div className="flex justify-between">
-                  <span className="text-yellow-400">1-7</span>
+                  <span className="text-yellow-400">1-8</span>
                   <span className="text-gray-300">Switch tabs</span>
                 </div>
 

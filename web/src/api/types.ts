@@ -1616,3 +1616,67 @@ export interface PrivacyFlagsResponse {
   flags: PrivacyFlag[];
   stats: PrivacyFlagStats;
 }
+
+// =============================================================================
+// Command Center / Prediction Types
+// =============================================================================
+
+export type ConfidenceLevel = "low" | "medium" | "high";
+
+export interface RunPrediction {
+  id: string;
+  managedSessionId: string;
+  createdAt: number;
+  predictedDurationMinutes: number;
+  durationConfidence: ConfidenceLevel;
+  predictedTokens: number;
+  tokenConfidence: ConfidenceLevel;
+  successConditions: string;
+  intentions: string;
+  selectedPrinciples?: string[];
+  principlesPath?: string;
+}
+
+export interface RunOutcome {
+  predictionId: string;
+  managedSessionId: string;
+  recordedAt: number;
+  actualDurationMinutes: number;
+  actualTokens: number;
+  exitCode: number;
+  userMarkedSuccess: boolean;
+  outcomeNotes?: string;
+}
+
+export interface CalibrationResult {
+  predictionId: string;
+  durationError: number;
+  durationWithinConfidence: boolean;
+  durationScore: number;
+  tokenError: number;
+  tokenWithinConfidence: boolean;
+  tokenScore: number;
+  successPredictionCorrect: boolean;
+  successScore: number;
+  overallScore: number;
+}
+
+export interface CalibrationStats {
+  totalPredictions: number;
+  completedPredictions: number;
+  overallCalibrationScore: number;
+  recentTrend: "improving" | "stable" | "declining";
+  history: Array<{ date: string; score: number; count: number }>;
+}
+
+export interface Principle {
+  id: string;
+  text: string;
+  category?: string;
+}
+
+export interface PrinciplesFile {
+  path: string;
+  principles: Principle[];
+  lastModified: number;
+}
