@@ -254,16 +254,63 @@ export class ProcessRunner {
       );
     }
 
+    // Verify cwd exists
+    try {
+      const cwdFile = Bun.file(cwd);
+      const cwdStat = await cwdFile.exists();
+      if (!cwdStat) {
+        throw new Error(`Working directory does not exist: ${cwd}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("does not exist")) {
+        throw e;
+      }
+      // Check if it's a directory using stat
+      try {
+        const proc = Bun.spawn(["test", "-d", cwd]);
+        const exitCode = await proc.exited;
+        if (exitCode !== 0) {
+          throw new Error(`Working directory is not a directory: ${cwd}`);
+        }
+      } catch {
+        throw new Error(`Cannot verify working directory: ${cwd}`);
+      }
+    }
+
     // Build command args with resolved path
     const cmdArgs = [binaryPath, ...agentConfig.print.slice(1), fullPrompt];
 
     // Spawn the process
+    // Use "ignore" for stdin since we're in print mode (no interactive input needed)
+    // and the daemon may not have a TTY when running in background
     const startedAt = Date.now();
-    const proc = Bun.spawn(cmdArgs, {
-      cwd,
-      stdio: ["inherit", "pipe", "pipe"],
-      env: process.env
-    });
+    let proc: ReturnType<typeof Bun.spawn>;
+    try {
+      proc = Bun.spawn(cmdArgs, {
+        cwd,
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          // Ensure PATH includes common locations
+          PATH: [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            process.env.HOME + "/.bun/bin",
+            process.env.HOME + "/.local/bin",
+            "/usr/bin",
+            process.env.PATH
+          ]
+            .filter(Boolean)
+            .join(":")
+        }
+      });
+    } catch (spawnError) {
+      throw new Error(
+        `Failed to spawn '${binaryPath}' in '${cwd}': ${spawnError}`
+      );
+    }
 
     // Update session with PID
     this.sessionStore.updateSession(sessionId, { pid: proc.pid });

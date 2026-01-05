@@ -5,7 +5,21 @@ A tool with two purposes:
 1. **Monitor & control AI coding agents** — see what's running, track sessions, enforce security gates
 2. **Review & contribute session data** — sanitize transcripts, enrich with feedback, share with researchers
 
-**Supports:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (full integration), [Codex CLI](https://github.com/openai/codex), [Gemini CLI](https://github.com/google/gemini-cli), [OpenCode](https://github.com/opencode-ai/opencode) (transcript reading)
+## Agent Support
+
+| Agent | Transcripts | Hooks | Process Detection | Command Center |
+|-------|:-----------:|:-----:|:-----------------:|:--------------:|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ | ✅ | ✅ | ✅ |
+| [Codex CLI](https://github.com/openai/codex) | ✅ | — | ✅ | ✅ |
+| [Gemini CLI](https://github.com/google/gemini-cli) | ✅ | — | ✅ | ✅ |
+| [Cursor](https://cursor.com) | — | — | ✅ | — |
+| [OpenCode](https://github.com/opencode-ai/opencode) | — | — | ✅ | — |
+
+**Legend:**
+- **Transcripts**: Read and parse local session logs (`~/.claude/`, `~/.codex/`, `~/.gemini/`)
+- **Hooks**: Real-time tool tracking via Claude Code hooks (`aw hooks install`)
+- **Process Detection**: Detect running agents, view CPU/memory
+- **Command Center**: Launch agent sessions via web UI
 
 ## Quick Start
 
