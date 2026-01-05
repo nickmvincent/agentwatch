@@ -318,6 +318,43 @@ function createTestApp() {
     });
   });
 
+  // GET /api/audit/calculations - Get transparent calculation logic
+  app.get("/api/audit/calculations", (c) => {
+    return c.json({
+      quality_score: {
+        description:
+          "Quality scores are a weighted average of four dimensions, modified by penalties.",
+        dimension_weights: {
+          completion: 35,
+          codeQuality: 25,
+          efficiency: 25,
+          safety: 15
+        },
+        signal_weights: {
+          noFailures: 30,
+          hasCommits: 25,
+          normalEnd: 20,
+          reasonableToolCount: 15,
+          healthyPacing: 10
+        },
+        scoring_rules: [
+          "Start with 50 points (neutral)",
+          "+20 points for making commits"
+        ],
+        penalties: ["-10 points overall if loops are detected"]
+      },
+      cost_estimation: {
+        description:
+          "Costs are estimated locally based on token usage and public pricing.",
+        pricing_table: {
+          "claude-sonnet-4": { inputPerMillion: 3, outputPerMillion: 15 }
+        },
+        formulas: ["Input Cost = (Input Tokens / 1M) * Input Rate"],
+        disclaimer: "These are estimates only."
+      }
+    });
+  });
+
   return { app, getEntries: () => entries };
 }
 
@@ -617,6 +654,23 @@ describe("Audit API", () => {
       expect(data.edge_cases.time_window_changes).toBeDefined();
       expect(data.edge_cases.time_window_changes.title).toBeDefined();
       expect(data.edge_cases.time_window_changes.description).toBeDefined();
+    });
+  });
+
+  describe("GET /api/audit/calculations", () => {
+    it("returns calculation logic and constants", async () => {
+      const { app } = createTestApp();
+      const res = await app.request("/api/audit/calculations");
+      expect(res.status).toBe(200);
+
+      const data = await res.json();
+      expect(data.quality_score).toBeDefined();
+      expect(data.quality_score.dimension_weights).toBeDefined();
+      expect(data.quality_score.scoring_rules).toBeDefined();
+      
+      expect(data.cost_estimation).toBeDefined();
+      expect(data.cost_estimation.pricing_table).toBeDefined();
+      expect(data.cost_estimation.formulas).toBeDefined();
     });
   });
 });

@@ -3,6 +3,7 @@ import type {
   AggregateCost,
   AnalyticsByProjectResult,
   AnalyticsDashboard,
+  AuditCalculationsResult,
   AuditCategoriesResult,
   // Audit types
   AuditEntry,
@@ -1746,9 +1747,15 @@ export async function fetchDataSources(): Promise<DataSourcesResult> {
   return res.json();
 }
 
-export async function fetchEdgeCases(): Promise<EdgeCasesResult> {
+export async function fetchAuditEdgeCases(): Promise<EdgeCasesResult> {
   const res = await fetch(`${API_BASE}/audit/edge-cases`);
   if (!res.ok) throw new Error("Failed to fetch edge cases");
+  return res.json();
+}
+
+export async function fetchAuditCalculations(): Promise<AuditCalculationsResult> {
+  const res = await fetch(`${API_BASE}/audit/calculations`);
+  if (!res.ok) throw new Error("Failed to fetch audit calculations");
   return res.json();
 }
 

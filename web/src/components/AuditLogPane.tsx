@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
+  fetchAuditCalculations,
   fetchAuditCategories,
   fetchAuditLog,
-  fetchDataSources,
-  fetchEdgeCases
+  fetchAuditEdgeCases,
+  fetchDataSources
 } from "../api/client";
 import type {
+  AuditCalculationsResult,
   AuditCategoriesResult,
   AuditEntry,
   AuditLogResult,
@@ -294,7 +296,7 @@ function TimelineEvent({ event }: { event: AuditEntry }) {
 
 export function AuditLogPane() {
   const [activeTab, setActiveTab] = useState<
-    "timeline" | "sources" | "edge-cases"
+    "timeline" | "sources" | "edge-cases" | "calculations"
   >("timeline");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -314,6 +316,9 @@ export function AuditLogPane() {
 
   // Edge cases state
   const [edgeCases, setEdgeCases] = useState<EdgeCasesResult | null>(null);
+
+  // Calculations state
+  const [calculations, setCalculations] = useState<AuditCalculationsResult | null>(null);
 
   useEffect(() => {
     loadData();
@@ -339,8 +344,11 @@ export function AuditLogPane() {
         const sources = await fetchDataSources();
         setDataSources(sources);
       } else if (activeTab === "edge-cases") {
-        const cases = await fetchEdgeCases();
+        const cases = await fetchAuditEdgeCases();
         setEdgeCases(cases);
+      } else if (activeTab === "calculations") {
+        const calcs = await fetchAuditCalculations();
+        setCalculations(calcs);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load data");
@@ -362,7 +370,7 @@ export function AuditLogPane() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             activeTab === "timeline"
@@ -382,6 +390,16 @@ export function AuditLogPane() {
           onClick={() => setActiveTab("sources")}
         >
           Data Sources
+        </button>
+        <button
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            activeTab === "calculations"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+          }`}
+          onClick={() => setActiveTab("calculations")}
+        >
+          Calculations
         </button>
         <button
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -650,6 +668,103 @@ export function AuditLogPane() {
                   <DataSourceCard key={key} name={key} info={info} />
                 )
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calculations Tab */}
+      {!loading && activeTab === "calculations" && calculations && (
+        <div className="space-y-6">
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-bold text-white mb-2">Quality Score Logic</h3>
+            <p className="text-gray-400 text-sm mb-4">{calculations.quality_score.description}</p>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-gray-700 rounded p-3">
+                <h4 className="font-medium text-gray-200 mb-2">Dimension Weights</h4>
+                <div className="space-y-1 text-sm">
+                  {Object.entries(calculations.quality_score.dimension_weights).map(([dim, weight]) => (
+                    <div key={dim} className="flex justify-between">
+                      <span className="text-gray-400 capitalize">{dim.replace(/([A-Z])/g, ' $1')}</span>
+                      <span className="text-white font-mono">{weight}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="bg-gray-700 rounded p-3">
+                <h4 className="font-medium text-gray-200 mb-2">Signal Weights</h4>
+                <div className="space-y-1 text-sm">
+                  {Object.entries(calculations.quality_score.signal_weights).map(([signal, weight]) => (
+                    <div key={signal} className="flex justify-between">
+                      <span className="text-gray-400 capitalize">{signal.replace(/([A-Z])/g, ' $1')}</span>
+                      <span className="text-white font-mono">{weight}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid md:grid-cols-2 gap-4">
+              <div className="bg-gray-700 rounded p-3">
+                <h4 className="font-medium text-gray-200 mb-2">Scoring Rules</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-gray-400">
+                  {calculations.quality_score.scoring_rules.map((rule, i) => (
+                    <li key={i}>{rule}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-gray-700 rounded p-3">
+                <h4 className="font-medium text-red-300 mb-2">Penalties</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-gray-400">
+                  {calculations.quality_score.penalties.map((rule, i) => (
+                    <li key={i}>{rule}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-bold text-white mb-2">Cost Estimation Logic</h3>
+            <p className="text-gray-400 text-sm mb-4">{calculations.cost_estimation.description}</p>
+            
+            <div className="bg-gray-700 rounded p-3 mb-4">
+              <h4 className="font-medium text-gray-200 mb-2">Pricing Table (USD per Million Tokens)</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-gray-500 border-b border-gray-600">
+                    <tr>
+                      <th className="py-1">Model</th>
+                      <th className="py-1 text-right">Input</th>
+                      <th className="py-1 text-right">Output</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-gray-300">
+                    {Object.entries(calculations.cost_estimation.pricing_table).map(([model, pricing]) => (
+                      <tr key={model} className="border-b border-gray-600/50">
+                        <td className="py-1 font-mono">{model}</td>
+                        <td className="py-1 text-right">${pricing.inputPerMillion}</td>
+                        <td className="py-1 text-right">${pricing.outputPerMillion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-gray-700 rounded p-3">
+              <h4 className="font-medium text-gray-200 mb-2">Formulas</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-400 font-mono">
+                {calculations.cost_estimation.formulas.map((formula, i) => (
+                  <li key={i}>{formula}</li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-yellow-500/80 italic">
+                {calculations.cost_estimation.disclaimer}
+              </p>
             </div>
           </div>
         </div>
