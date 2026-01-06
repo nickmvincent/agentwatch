@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:watcher": "BUILD_TARGET=watcher vite",
+    "dev:analyzer": "BUILD_TARGET=analyzer vite",
     "build": "tsc --noEmit && vite build",
+    "build:watcher": "BUILD_TARGET=watcher vite build",
+    "build:analyzer": "BUILD_TARGET=analyzer vite build",
     "preview": "vite preview"
   },
   "dependencies": {
