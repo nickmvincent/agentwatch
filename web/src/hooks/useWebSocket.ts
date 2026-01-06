@@ -434,6 +434,21 @@ export function useWebSocket(
     };
   }, [connect]);
 
+  // Poll managed sessions when there are active sessions (to detect when they end)
+  useEffect(() => {
+    const hasRunning = managedSessions.some((s) => s.status === "running");
+    if (!hasRunning || paused) return;
+
+    // Poll every 5 seconds while we have running sessions
+    const interval = setInterval(() => {
+      if (!pausedRef.current) {
+        fetchManagedSessions();
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [managedSessions, paused]);
+
   return {
     connected,
     paused,
