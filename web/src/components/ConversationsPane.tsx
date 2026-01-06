@@ -109,9 +109,15 @@ function getDataSourceLabel(
 
 interface ConversationsPaneProps {
   onNavigateToTab?: (tab: string) => void;
+  isActive?: boolean;
+  activatedAt?: number;
 }
 
-export function ConversationsPane({ onNavigateToTab }: ConversationsPaneProps) {
+export function ConversationsPane({
+  onNavigateToTab,
+  isActive: _isActive,
+  activatedAt: _activatedAt
+}: ConversationsPaneProps) {
   // Use shared context for conversations and names
   const {
     conversations: contextConversations,

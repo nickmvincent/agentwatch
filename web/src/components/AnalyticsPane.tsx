@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchAnalyticsByProject,
   fetchDailyStats,
@@ -29,11 +29,16 @@ interface SessionTokens {
   turnCount: number;
 }
 
+// Refresh data if tab has been hidden for more than 5 minutes
+const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+
 interface AnalyticsPaneProps {
   onNavigateToConversations?: () => void;
   hookSessions?: HookSession[];
   recentToolUsages?: ToolUsage[];
   sessionTokens?: Record<string, SessionTokens>;
+  isActive?: boolean;
+  activatedAt?: number;
 }
 
 // Task type colors
@@ -378,11 +383,14 @@ export function AnalyticsPane({
   onNavigateToConversations,
   hookSessions: _hookSessions = [],
   recentToolUsages: _recentToolUsages = [],
-  sessionTokens: _sessionTokens = {}
+  sessionTokens: _sessionTokens = {},
+  isActive = false,
+  activatedAt = 0
 }: AnalyticsPaneProps) {
   const { setFilter } = useConversations();
   const { getConfig, getAnalytics } = useData();
   const [loading, setLoading] = useState(true);
+  const lastLoadedAt = useRef(0);
   const [transcriptDays, setTranscriptDays] = useState<number>(30);
   const [loadErrors, setLoadErrors] = useState<LoadError[]>([]);
 
@@ -420,11 +428,7 @@ export function AnalyticsPane({
   }, [getConfig]);
 
   // Load ALL data upfront
-  useEffect(() => {
-    loadAllData();
-  }, [transcriptDays]);
-
-  async function loadAllData() {
+  const loadAllData = useCallback(async () => {
     setLoading(true);
     setLoadErrors([]);
     try {
@@ -510,8 +514,25 @@ export function AnalyticsPane({
       setLoadErrors([{ name: "analytics", message: getErrorMessage(e) }]);
     } finally {
       setLoading(false);
+      lastLoadedAt.current = Date.now();
     }
-  }
+  }, [transcriptDays, getAnalytics]);
+
+  // Initial load
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
+
+  // Auto-refresh when tab becomes active and data is stale
+  useEffect(() => {
+    if (
+      isActive &&
+      lastLoadedAt.current > 0 &&
+      Date.now() - lastLoadedAt.current > STALE_THRESHOLD_MS
+    ) {
+      loadAllData();
+    }
+  }, [isActive, activatedAt, loadAllData]);
 
   // Navigate to conversations with filter
   function navigateWithFilter(filterData: ConversationFilter) {

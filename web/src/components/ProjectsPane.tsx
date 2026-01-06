@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createProject,
   deleteProject,
@@ -9,8 +9,13 @@ import {
 } from "../api/client";
 import type { Project, ProjectAnalyticsItem, RepoStatus } from "../api/types";
 
+// Refresh data if tab has been hidden for more than 5 minutes
+const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+
 interface ProjectsPaneProps {
   repos: RepoStatus[];
+  isActive?: boolean;
+  activatedAt?: number;
 }
 
 interface ProjectWithStats extends Project {
@@ -26,10 +31,15 @@ function formatTokens(count: number): string {
   return count.toString();
 }
 
-export function ProjectsPane({ repos }: ProjectsPaneProps) {
+export function ProjectsPane({
+  repos,
+  isActive = true,
+  activatedAt = 0
+}: ProjectsPaneProps) {
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const lastLoadedAt = useRef<number>(0);
 
   // Edit modal state
   const [editingProject, setEditingProject] = useState<ProjectWithStats | null>(
@@ -147,6 +157,7 @@ export function ProjectsPane({ repos }: ProjectsPaneProps) {
       });
 
       setProjects(projectsWithStats);
+      lastLoadedAt.current = Date.now();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
@@ -154,9 +165,21 @@ export function ProjectsPane({ repos }: ProjectsPaneProps) {
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  // Auto-refresh when tab becomes active and data is stale
+  useEffect(() => {
+    if (
+      isActive &&
+      lastLoadedAt.current > 0 &&
+      Date.now() - lastLoadedAt.current > STALE_THRESHOLD_MS
+    ) {
+      loadProjects();
+    }
+  }, [isActive, activatedAt, loadProjects]);
 
   // Open create modal
   const openCreateModal = () => {

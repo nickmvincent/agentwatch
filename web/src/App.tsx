@@ -150,12 +150,29 @@ function App() {
   // Track tabs that have been visited (for lazy loading)
   const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(new Set(["agents"]));
 
-  // Mark tab as visited when activated
+  // Track when each tab was last activated (for stale refresh)
+  const [tabActivatedAt, setTabActivatedAt] = useState<Record<Tab, number>>({
+    agents: Date.now(),
+    projects: 0,
+    conversations: 0,
+    analytics: 0,
+    ports: 0,
+    contrib: 0,
+    command: 0,
+    docs: 0,
+    settings: 0
+  });
+
+  // Mark tab as visited and update activation time
   useEffect(() => {
     setVisitedTabs((prev) => {
       if (prev.has(activeTab)) return prev;
       return new Set([...prev, activeTab]);
     });
+    setTabActivatedAt((prev) => ({
+      ...prev,
+      [activeTab]: Date.now()
+    }));
   }, [activeTab]);
 
   const toggleHidePort = useCallback((port: number) => {
@@ -512,7 +529,11 @@ function App() {
             {/* Heavy panes: lazy load on first visit, keep mounted to preserve state */}
             {visitedTabs.has("projects") && (
               <div className={activeTab === "projects" ? "" : "hidden"}>
-                <ProjectsPane repos={repos} />
+                <ProjectsPane
+                  repos={repos}
+                  isActive={activeTab === "projects"}
+                  activatedAt={tabActivatedAt.projects}
+                />
               </div>
             )}
 
@@ -520,6 +541,8 @@ function App() {
               <div className={activeTab === "conversations" ? "" : "hidden"}>
                 <ConversationsPane
                   onNavigateToTab={(tab) => setActiveTab(tab as Tab)}
+                  isActive={activeTab === "conversations"}
+                  activatedAt={tabActivatedAt.conversations}
                 />
               </div>
             )}
@@ -530,6 +553,8 @@ function App() {
                   onNavigateToConversations={() =>
                     setActiveTab("conversations")
                   }
+                  isActive={activeTab === "analytics"}
+                  activatedAt={tabActivatedAt.analytics}
                   hookSessions={hookSessions}
                   recentToolUsages={recentToolUsages}
                   sessionTokens={sessionTokens}
