@@ -235,61 +235,6 @@ export function HooksPane({
     return `${(ms / 1000).toFixed(1)}s`;
   };
 
-  // Get a summary string from tool input based on tool type
-  const getToolInputSummary = (
-    toolName: string,
-    input: Record<string, unknown>
-  ): string | null => {
-    switch (toolName) {
-      case "Read":
-        return input.file_path
-          ? String(input.file_path).split("/").slice(-2).join("/")
-          : null;
-      case "Write":
-      case "Edit":
-        return input.file_path
-          ? String(input.file_path).split("/").slice(-2).join("/")
-          : null;
-      case "Bash":
-        if (input.command) {
-          const cmd = String(input.command);
-          return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd;
-        }
-        return null;
-      case "Glob":
-        return input.pattern ? String(input.pattern) : null;
-      case "Grep":
-        return input.pattern ? `/${input.pattern}/` : null;
-      case "Task":
-        return input.description ? String(input.description) : null;
-      case "WebFetch":
-      case "WebSearch":
-        return input.url
-          ? String(input.url).slice(0, 50)
-          : input.query
-            ? String(input.query)
-            : null;
-      case "TodoWrite":
-        return input.todos
-          ? `${(input.todos as unknown[]).length} items`
-          : null;
-      default:
-        // For unknown tools, try common field names
-        if (input.file_path)
-          return String(input.file_path).split("/").slice(-2).join("/");
-        if (input.path)
-          return String(input.path).split("/").slice(-2).join("/");
-        if (input.command) return String(input.command).slice(0, 50);
-        return null;
-    }
-  };
-
-  // Get project name from cwd
-  const getProjectName = (cwd: string): string => {
-    const parts = cwd.split("/").filter(Boolean);
-    return parts.slice(-1)[0] || cwd;
-  };
-
   // Build a map of session_id to session info for quick lookup
   const sessionMap = useMemo(() => {
     const map = new Map<string, HookSession>();
@@ -530,84 +475,13 @@ export function HooksPane({
         {/* Token Usage */}
         <TokenSummary sessionTokens={sessionTokens} />
 
-        {/* Activity Feed */}
-        <ActivityFeed events={activityEvents} formatTime={formatTime} />
-
-        {/* Recent Tool Timeline */}
-        {recentToolUsages.length > 0 && (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">
-              Recent tool calls ({recentToolUsages.length})
-            </summary>
-            <div className="mt-2 space-y-1 max-h-64 overflow-y-auto">
-              {recentToolUsages.slice(0, 30).map((usage) => {
-                const session = sessionMap.get(usage.session_id);
-                const inputSummary = getToolInputSummary(
-                  usage.tool_name,
-                  usage.tool_input
-                );
-                const projectName = usage.cwd
-                  ? getProjectName(usage.cwd)
-                  : session
-                    ? getProjectName(session.cwd)
-                    : null;
-
-                return (
-                  <div
-                    key={usage.tool_use_id}
-                    className={`p-2 rounded text-xs ${
-                      usage.success === false
-                        ? "bg-red-900/20 border-l-2 border-red-500"
-                        : "bg-gray-700/30"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-medium text-gray-300 shrink-0">
-                          {usage.tool_name}
-                        </span>
-                        {projectName && (
-                          <span
-                            className="text-gray-500 truncate"
-                            title={usage.cwd || session?.cwd}
-                          >
-                            @ {projectName}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {usage.duration_ms !== null && (
-                          <span className="text-gray-500">
-                            {formatDuration(usage.duration_ms)}
-                          </span>
-                        )}
-                        <span className="text-gray-600">
-                          {formatTime(usage.timestamp)}
-                        </span>
-                      </div>
-                    </div>
-                    {inputSummary && (
-                      <div
-                        className="mt-1 text-gray-400 font-mono text-[11px] truncate"
-                        title={inputSummary}
-                      >
-                        {inputSummary}
-                      </div>
-                    )}
-                    {usage.success === false && usage.error && (
-                      <div
-                        className="mt-1 text-red-400 text-[11px] truncate"
-                        title={usage.error}
-                      >
-                        {usage.error}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </details>
-        )}
+        {/* Activity Feed - Pure chronological timeline of all hooks */}
+        <ActivityFeed
+          events={activityEvents}
+          formatTime={formatTime}
+          recentToolUsages={recentToolUsages}
+          sessionMap={sessionMap}
+        />
       </div>
 
       {/* HISTORICAL STATS */}
@@ -808,10 +682,14 @@ const EVENT_CATEGORIES = {
 
 function ActivityFeed({
   events,
-  formatTime
+  formatTime,
+  recentToolUsages,
+  sessionMap
 }: {
   events: ActivityEvent[];
   formatTime: (ts: number) => string;
+  recentToolUsages?: ToolUsage[];
+  sessionMap?: Map<string, HookSession>;
 }) {
   const [filter, setFilter] = useState<keyof typeof EVENT_CATEGORIES>("all");
   const [expanded, setExpanded] = useState(false);
@@ -820,6 +698,53 @@ function ActivityFeed({
     if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
     if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
     return n.toString();
+  };
+
+  // Create a lookup for tool usage details by tool_use_id
+  const toolUsageMap = useMemo(() => {
+    const map = new Map<string, ToolUsage>();
+    if (recentToolUsages) {
+      for (const usage of recentToolUsages) {
+        map.set(usage.tool_use_id, usage);
+      }
+    }
+    return map;
+  }, [recentToolUsages]);
+
+  // Get tool input summary for richer timeline display
+  const getToolInputSummary = (
+    toolName: string,
+    input: Record<string, unknown>
+  ): string | null => {
+    switch (toolName) {
+      case "Read":
+        return input.file_path
+          ? String(input.file_path).split("/").slice(-2).join("/")
+          : null;
+      case "Write":
+      case "Edit":
+        return input.file_path
+          ? String(input.file_path).split("/").slice(-2).join("/")
+          : null;
+      case "Bash":
+        if (input.command) {
+          const cmd = String(input.command);
+          return cmd.length > 50 ? cmd.slice(0, 47) + "..." : cmd;
+        }
+        return null;
+      case "Glob":
+        return input.pattern ? String(input.pattern) : null;
+      case "Grep":
+        return input.pattern ? `/${input.pattern}/` : null;
+      case "Task":
+        return input.description ? String(input.description) : null;
+      default:
+        if (input.file_path)
+          return String(input.file_path).split("/").slice(-2).join("/");
+        if (input.path)
+          return String(input.path).split("/").slice(-2).join("/");
+        return null;
+    }
   };
 
   const filteredEvents =
@@ -927,22 +852,46 @@ function ActivityFeed({
                       {String(event.data.tool_count)} tools
                     </span>
                   )}
-                  {/* Tool usage */}
-                  {event.type === "tool_start" && (
-                    <span className="text-xs text-cyan-400">
-                      {String(event.data.tool_name)}
-                    </span>
-                  )}
-                  {event.type === "tool_end" && (
-                    <span
-                      className={`text-xs ${event.data.success === false ? "text-red-400" : "text-cyan-400"}`}
-                    >
-                      {String(event.data.tool_name)}
-                      {event.data.duration_ms != null &&
-                        ` (${Number(event.data.duration_ms) < 1000 ? `${Number(event.data.duration_ms)}ms` : `${(Number(event.data.duration_ms) / 1000).toFixed(1)}s`})`}
-                      {event.data.success === false && " FAILED"}
-                    </span>
-                  )}
+                  {/* Tool usage - with input summary from detailed tool data */}
+                  {event.type === "tool_start" && (() => {
+                    const toolName = String(event.data.tool_name);
+                    const toolUseId = String(event.data.tool_use_id || "");
+                    const usage = toolUsageMap.get(toolUseId);
+                    const inputSummary = usage ? getToolInputSummary(toolName, usage.tool_input) : null;
+                    return (
+                      <>
+                        <span className="text-xs text-cyan-400">{toolName}</span>
+                        {inputSummary && (
+                          <span className="text-xs text-gray-500 font-mono truncate max-w-[200px]" title={inputSummary}>
+                            {inputSummary}
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
+                  {event.type === "tool_end" && (() => {
+                    const toolName = String(event.data.tool_name);
+                    const toolUseId = String(event.data.tool_use_id || "");
+                    const usage = toolUsageMap.get(toolUseId);
+                    const inputSummary = usage ? getToolInputSummary(toolName, usage.tool_input) : null;
+                    return (
+                      <>
+                        <span
+                          className={`text-xs ${event.data.success === false ? "text-red-400" : "text-cyan-400"}`}
+                        >
+                          {toolName}
+                          {event.data.duration_ms != null &&
+                            ` (${Number(event.data.duration_ms) < 1000 ? `${Number(event.data.duration_ms)}ms` : `${(Number(event.data.duration_ms) / 1000).toFixed(1)}s`})`}
+                          {event.data.success === false && " FAILED"}
+                        </span>
+                        {inputSummary && (
+                          <span className="text-xs text-gray-500 font-mono truncate max-w-[200px]" title={inputSummary}>
+                            {inputSummary}
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
                   {/* User interaction - token counts show input → output */}
                   {event.type === "response" &&
                     typeof event.data.input_tokens === "number" && (
