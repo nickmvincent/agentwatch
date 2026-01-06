@@ -7,11 +7,11 @@
 import { useEffect, useState } from "react";
 import { AgentPane } from "../../components/AgentPane";
 import { PortsPane } from "../../components/PortsPane";
-import { Header } from "../../components/Header";
 import { ConversationProvider } from "../../context/ConversationContext";
 import { DataProvider } from "../../context/DataProvider";
 import { LoadingProvider } from "../../context/LoadingContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import { WatcherHeader } from "./WatcherHeader";
 
 type Tab = "agents" | "repos" | "ports" | "timeline";
 type HideableTab = "hooks" | "repos" | "ports";
@@ -83,10 +83,11 @@ function WatcherApp() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
-      <Header
+      <WatcherHeader
         connected={connected}
         repoCount={repos.length}
         agentCount={agents.length}
+        sessionCount={hookSessions.filter((s) => s.active).length}
       />
 
       <div className="border-b border-gray-700">

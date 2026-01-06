@@ -16,6 +16,7 @@ import { SettingsPane } from "../../components/SettingsPane";
 import { ConversationProvider } from "../../context/ConversationContext";
 import { DataProvider } from "../../context/DataProvider";
 import { LoadingProvider } from "../../context/LoadingContext";
+import { AgentStatusWidget } from "./AgentStatusWidget";
 
 type Tab =
   | "sessions"
@@ -173,6 +174,9 @@ function AnalyzerApp() {
           />
         )}
       </main>
+
+      {/* Floating agent status widget - shows when watcher is connected */}
+      <AgentStatusWidget />
     </div>
   );
 }
