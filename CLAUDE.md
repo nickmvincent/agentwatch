@@ -20,10 +20,14 @@ General guidance for AI agents working on this codebase.
 
 **Data flow:** Hooks/scanners → DataStore/HookStore → API → Web UI
 
-**Architecture split (in progress):**
-- Watcher: Always-on daemon for real-time monitoring (port 8420)
-- Analyzer: Browser-only on-demand analysis (port 8421)
-- Daemon: Full combined server (current, to be deprecated)
+**Two-server architecture:**
+- **Watcher** (port 8420): Always-on daemon for real-time monitoring
+  - Agents, repos, ports, hooks
+  - WebSocket for live updates
+- **Analyzer** (port 8421): On-demand browser-based analysis
+  - Enrichments, transcripts, analytics, sharing
+  - Heartbeat-based lifecycle (closes when browser closes)
+- **Daemon** (legacy): Full combined server (deprecated, use watcher/analyzer)
 
 ## Development vs Production
 
@@ -140,9 +144,9 @@ Build order matters:
 | `annotations.json` | JSON | User feedback/ratings |
 | `artifacts.json` | JSON | Session → artifact links (PRs, repos, commits) |
 
-**Audit event pattern:** All significant operations log to `events.jsonl` via `logAuditEvent(category, action, entityId, description, details)`. Events automatically appear in the Audit tab. See `packages/daemon/src/audit-log.ts`.
+**Audit event pattern:** All significant operations log to `events.jsonl` via `logAuditEvent(category, action, entityId, description, details)`. Events automatically appear in the Audit tab. See `packages/analyzer/src/audit-log.ts`.
 
-**Transcript index:** Full scan every 24h, incremental updates every 5min. Persists at `transcripts/index.json`. See `packages/daemon/src/transcript-index.ts`.
+**Transcript index:** Full scan every 24h, incremental updates every 5min. Persists at `transcripts/index.json`. See `packages/analyzer/src/transcript-index.ts`.
 
 ## Status & Roadmap
 

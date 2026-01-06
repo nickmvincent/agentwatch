@@ -27,27 +27,28 @@
 | Heuristic scoring | ✅ Working | Auto-success detection |
 | Settings persistence | ✅ Working | TOML config at `~/.config/agentwatch/` |
 
-### Architecture Split (In Progress)
+### Architecture Split ✅ (Complete)
 | Package | Status | Purpose |
 |---------|--------|---------|
-| `@agentwatch/shared-api` | ✅ Created | Dict converters, API utilities |
-| `@agentwatch/watcher` | ✅ Created | Real-time monitoring daemon |
-| `@agentwatch/analyzer` | ✅ Created | On-demand analysis server |
-| CLI commands | ✅ Added | `aw watcher`, `aw analyze` |
-| Web UI split | ⏳ Deferred | Two build targets planned |
-| Test migration | ⏳ Deferred | Move tests to new packages |
-| Daemon deprecation | ⏳ Planned | Keep as compatibility layer |
+| `@agentwatch/shared-api` | ✅ Complete | Dict converters, API utilities, JSDoc documented |
+| `@agentwatch/watcher` | ✅ Complete | Real-time monitoring (agents, repos, hooks, WebSocket) |
+| `@agentwatch/analyzer` | ✅ Complete | Analysis (enrichments, transcripts, analytics, sharing) |
+| CLI commands | ✅ Complete | `aw watcher start/stop`, `aw analyze` |
+| Web UI split | ✅ Complete | Two apps: watcher (Agents/Repos/Ports), analyzer (Sessions/Analytics) |
+| Package tests | ✅ Complete | 13 watcher tests, 18 analyzer tests |
+| Daemon | ⚠️ Deprecated | Use watcher + analyzer instead |
 
-### Test Coverage (772 tests total)
+### Test Coverage (803 tests total)
 | Package | Tests | Notes |
 |---------|-------|-------|
 | daemon | 225+ | API, rules, enrichments, correlation, research profiles |
 | monitor | 400+ | HookStore, DataStore, git utils, scanners |
 | pre-share | 137+ | Sanitization, patterns, preparation |
 | core | 30+ | Transcript parsing, cost estimation |
-| shared-api | - | Uses daemon tests for now |
-| watcher | - | Uses daemon tests for now |
-| analyzer | - | Uses daemon tests for now |
+| shared-api | (converters) | Tested via watcher/analyzer tests |
+| watcher | 13 | API endpoints, hook handlers |
+| analyzer | 18 | API endpoints, enrichments, transcripts |
+| transcript-parser | 19 | Discovery, parsing, cost estimation |
 
 ---
 

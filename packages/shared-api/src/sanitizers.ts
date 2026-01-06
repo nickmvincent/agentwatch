@@ -1,6 +1,11 @@
 /**
  * Sanitization helpers for API responses.
- * Used to redact sensitive information before sending to clients.
+ *
+ * These functions redact sensitive information (usernames, tokens, secrets)
+ * before data is sent to clients or stored in logs. Used primarily for
+ * process snapshots and command lines that may contain sensitive paths.
+ *
+ * @module
  */
 
 import type { ProcessSnapshot, ProcessLifecycleEvent } from "./dict-converters";
@@ -8,6 +13,15 @@ import { processSnapshotToDict, processEventToDict } from "./dict-converters";
 
 /**
  * Redact username from a path by replacing /Users/xxx or /home/xxx with ~
+ *
+ * @param path - File path that may contain username
+ * @returns Path with username replaced by ~
+ *
+ * @example
+ * ```typescript
+ * redactUserFromPath("/Users/alice/projects/foo") // => "~/projects/foo"
+ * redactUserFromPath("/home/bob/.config")         // => "~/.config"
+ * ```
  */
 export function redactUserFromPath(path: string): string {
   return path
@@ -18,6 +32,13 @@ export function redactUserFromPath(path: string): string {
 
 /**
  * Sanitize a command line by removing sensitive information.
+ *
+ * Redacts:
+ * - Paths containing usernames
+ * - `--token`, `--api-key`, `--password`, `--secret` values
+ *
+ * @param cmdline - Full command line string
+ * @returns Sanitized command line with secrets replaced by [REDACTED]
  */
 export function sanitizeCmdline(cmdline: string): string {
   let result = cmdline;
@@ -40,6 +61,15 @@ export function sanitizeCmdline(cmdline: string): string {
 
 /**
  * Sanitize a process snapshot by redacting sensitive paths and cmdlines.
+ *
+ * Converts the snapshot to API dict format and optionally redacts:
+ * - `cwd`, `repo_path`, `exe` paths (when redactPaths is true)
+ * - `cmdline` secrets (when redactCmdline is true)
+ *
+ * @param snapshot - Process snapshot to sanitize
+ * @param redactPaths - Whether to redact usernames from paths (default: true)
+ * @param redactCmdlineFlag - Whether to redact secrets from cmdline (default: true)
+ * @returns Sanitized snake_case dict for JSON response
  */
 export function sanitizeProcessSnapshot(
   snapshot: ProcessSnapshot,
@@ -73,7 +103,12 @@ export function sanitizeProcessSnapshot(
 }
 
 /**
- * Sanitize a process lifecycle event.
+ * Sanitize a process lifecycle event by redacting sensitive paths and cmdlines.
+ *
+ * @param event - Process lifecycle event to sanitize
+ * @param redactPaths - Whether to redact usernames from paths (default: true)
+ * @param redactCmdlineArg - Whether to redact secrets from cmdline (default: true)
+ * @returns Sanitized snake_case dict for JSON response
  */
 export function sanitizeProcessEvent(
   event: ProcessLifecycleEvent,

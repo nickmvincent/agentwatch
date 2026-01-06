@@ -1,3 +1,13 @@
+/**
+ * @deprecated Use `aw watcher` and `aw analyze` instead.
+ *
+ * The combined daemon is deprecated. The new architecture splits functionality:
+ * - `aw watcher start/stop/status` - Real-time monitoring daemon (port 8420)
+ * - `aw analyze` - On-demand analysis dashboard (port 8421)
+ *
+ * This command remains as an alias to watcher for backwards compatibility.
+ */
+
 import { DAEMON } from "@agentwatch/core";
 import { Command } from "commander";
 import pc from "picocolors";
@@ -5,8 +15,19 @@ import pc from "picocolors";
 const DEFAULT_HOST = DAEMON.HOST;
 const DEFAULT_PORT = DAEMON.PORT;
 
+function printDeprecationNotice() {
+  console.log();
+  console.log(pc.yellow("⚠️  DEPRECATION NOTICE"));
+  console.log(
+    pc.yellow("    The `aw daemon` command is deprecated. Use instead:")
+  );
+  console.log(pc.cyan("      aw watcher start    - Real-time monitoring"));
+  console.log(pc.cyan("      aw analyze          - Analysis dashboard"));
+  console.log();
+}
+
 export const daemonCommand = new Command("daemon").description(
-  "Manage the daemon process"
+  "Manage the daemon process (DEPRECATED: use 'aw watcher' instead)"
 );
 
 daemonCommand
@@ -16,6 +37,8 @@ daemonCommand
   .option("-p, --port <port>", "Port to bind", String(DEFAULT_PORT))
   .option("-f, --foreground", "Run in foreground")
   .action(async (options) => {
+    printDeprecationNotice();
+
     const host = options.host;
     const port = Number.parseInt(options.port, 10);
 

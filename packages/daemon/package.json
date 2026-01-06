@@ -1,6 +1,8 @@
 {
   "name": "@agentwatch/daemon",
   "version": "0.1.0",
+  "description": "DEPRECATED: Use @agentwatch/watcher and @agentwatch/analyzer instead",
+  "deprecated": "Use @agentwatch/watcher for monitoring and @agentwatch/analyzer for analysis",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

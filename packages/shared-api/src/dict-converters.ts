@@ -1,6 +1,26 @@
 /**
  * Dict converters for API responses.
- * Converts TypeScript camelCase types to snake_case JSON format.
+ *
+ * These functions convert internal TypeScript objects (camelCase) to API-ready
+ * dictionaries (snake_case) suitable for JSON serialization. Each converter
+ * performs a semantic transformation, not just case conversion:
+ *
+ * - Computed fields are added (e.g., `dirty`, `active`, `success_rate`)
+ * - Optional fields are normalized to null when missing
+ * - Nested objects are flattened where appropriate
+ *
+ * @example
+ * ```typescript
+ * import { repoToDict, agentToDict } from "@agentwatch/shared-api";
+ *
+ * // In an API handler
+ * app.get("/api/repos", (c) => {
+ *   const repos = store.snapshotRepos();
+ *   return c.json(repos.map(repoToDict));
+ * });
+ * ```
+ *
+ * @module
  */
 
 import type {
@@ -27,39 +47,81 @@ export type {
 };
 
 /**
- * Process snapshot type (from monitor package, redefined here to avoid circular deps)
+ * Point-in-time snapshot of a running AI agent process.
+ *
+ * Captured by the process scanner at regular intervals and stored in
+ * `~/.agentwatch/processes/snapshots_YYYY-MM-DD.jsonl`.
  */
 export interface ProcessSnapshot {
+  /** Unix timestamp (ms) when this snapshot was taken */
   timestamp: number;
+  /** Process ID */
   pid: number;
+  /** Human-readable label (e.g., "claude", "codex", "cursor") */
   label: string;
+  /** Full command line */
   cmdline: string;
+  /** Path to executable */
   exe: string;
+  /** CPU usage percentage (0-100+) */
   cpuPct: number;
+  /** Resident set size in KB (memory usage) */
   rssKb?: number;
+  /** Number of threads */
   threads?: number;
+  /** Current working directory */
   cwd?: string;
+  /** Git repository path if running in a repo */
   repoPath?: string;
+  /** Process state (Running, Sleeping, etc.) */
   state?: string;
+  /** Whether process is sandboxed */
   sandboxed?: boolean;
+  /** Type of sandbox if sandboxed (AppSandbox, etc.) */
   sandboxType?: string;
+  /** Process start time (Unix timestamp ms) */
   startTime?: number;
 }
 
 /**
- * Process lifecycle event type
+ * Lifecycle event for an AI agent process (start or end).
+ *
+ * Stored in `~/.agentwatch/processes/events_YYYY-MM-DD.jsonl`.
  */
 export interface ProcessLifecycleEvent {
+  /** Event type: "process_start" or "process_end" */
   type: "process_start" | "process_end";
+  /** Unix timestamp (ms) when event occurred */
   timestamp: number;
+  /** Process ID */
   pid: number;
+  /** Human-readable label */
   label: string;
+  /** Full command line */
   cmdline: string;
+  /** Current working directory */
   cwd?: string;
+  /** Git repository path */
   repoPath?: string;
+  /** Duration in ms (only for process_end events) */
   durationMs?: number;
 }
 
+/**
+ * Convert a RepoStatus to API dict format.
+ *
+ * Adds computed field `dirty` (true if any staged/unstaged/untracked changes).
+ * Flattens `specialState` and `upstream` objects into top-level fields.
+ *
+ * @param repo - Repository status from the data store
+ * @returns Snake_case dict for JSON response
+ *
+ * @example
+ * ```typescript
+ * const repos = store.snapshotRepos();
+ * return c.json(repos.map(repoToDict));
+ * ```
+ */
 export function repoToDict(repo: RepoStatus): Record<string, unknown> {
   return {
     repo_id: repo.repoId,
@@ -86,6 +148,21 @@ export function repoToDict(repo: RepoStatus): Record<string, unknown> {
   };
 }
 
+/**
+ * Convert an AgentProcess to API dict format.
+ *
+ * Converts nested `heuristicState` and `wrapperState` objects to snake_case.
+ * Missing optional nested objects are returned as null (not undefined).
+ *
+ * @param agent - Agent process from the data store
+ * @returns Snake_case dict for JSON response
+ *
+ * @example
+ * ```typescript
+ * const agents = store.snapshotAgents();
+ * return c.json(agents.map(agentToDict));
+ * ```
+ */
 export function agentToDict(agent: AgentProcess): Record<string, unknown> {
   const result: Record<string, unknown> = {
     pid: agent.pid,
@@ -126,6 +203,22 @@ export function agentToDict(agent: AgentProcess): Record<string, unknown> {
   return result;
 }
 
+/**
+ * Convert a HookSession to API dict format.
+ *
+ * Adds computed fields:
+ * - `active`: true if endTime is undefined
+ * - `commit_count`: length of commits array
+ *
+ * @param session - Hook session from the hook store
+ * @returns Snake_case dict for JSON response
+ *
+ * @example
+ * ```typescript
+ * const sessions = hookStore.getActiveSessions();
+ * return c.json(sessions.map(hookSessionToDict));
+ * ```
+ */
 export function hookSessionToDict(
   session: HookSession
 ): Record<string, unknown> {
@@ -153,6 +246,14 @@ export function hookSessionToDict(
   };
 }
 
+/**
+ * Convert a ToolUsage to API dict format.
+ *
+ * Normalizes optional fields to null when missing.
+ *
+ * @param usage - Tool usage record from the hook store
+ * @returns Snake_case dict for JSON response
+ */
 export function toolUsageToDict(usage: ToolUsage): Record<string, unknown> {
   return {
     tool_use_id: usage.toolUseId,
@@ -168,6 +269,14 @@ export function toolUsageToDict(usage: ToolUsage): Record<string, unknown> {
   };
 }
 
+/**
+ * Convert ToolStats to API dict format.
+ *
+ * Adds computed field `success_rate` (0-100 percentage).
+ *
+ * @param stats - Aggregated tool statistics from the hook store
+ * @returns Snake_case dict for JSON response
+ */
 export function toolStatsToDict(stats: ToolStats): Record<string, unknown> {
   return {
     tool_name: stats.toolName,
@@ -181,6 +290,12 @@ export function toolStatsToDict(stats: ToolStats): Record<string, unknown> {
   };
 }
 
+/**
+ * Convert DailyStats to API dict format.
+ *
+ * @param stats - Daily aggregated statistics
+ * @returns Snake_case dict for JSON response
+ */
 export function dailyStatsToDict(stats: DailyStats): Record<string, unknown> {
   return {
     date: stats.date,
@@ -191,6 +306,12 @@ export function dailyStatsToDict(stats: DailyStats): Record<string, unknown> {
   };
 }
 
+/**
+ * Convert a GitCommit to API dict format.
+ *
+ * @param commit - Git commit record from the hook store
+ * @returns Snake_case dict for JSON response
+ */
 export function gitCommitToDict(commit: GitCommit): Record<string, unknown> {
   return {
     commit_hash: commit.commitHash,
@@ -201,6 +322,12 @@ export function gitCommitToDict(commit: GitCommit): Record<string, unknown> {
   };
 }
 
+/**
+ * Convert a ProcessSnapshot to API dict format.
+ *
+ * @param snapshot - Process snapshot from the monitor
+ * @returns Snake_case dict for JSON response
+ */
 export function processSnapshotToDict(
   snapshot: ProcessSnapshot
 ): Record<string, unknown> {
@@ -222,6 +349,12 @@ export function processSnapshotToDict(
   };
 }
 
+/**
+ * Convert a ProcessLifecycleEvent to API dict format.
+ *
+ * @param event - Process lifecycle event (start or end)
+ * @returns Snake_case dict for JSON response
+ */
 export function processEventToDict(
   event: ProcessLifecycleEvent
 ): Record<string, unknown> {
@@ -237,6 +370,12 @@ export function processEventToDict(
   };
 }
 
+/**
+ * Convert a ListeningPort to API dict format.
+ *
+ * @param port - Listening port from the port scanner
+ * @returns Snake_case dict for JSON response
+ */
 export function portToDict(port: ListeningPort): Record<string, unknown> {
   return {
     port: port.port,

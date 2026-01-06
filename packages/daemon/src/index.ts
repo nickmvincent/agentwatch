@@ -1,9 +1,22 @@
 /**
  * @agentwatch/daemon - HTTP daemon for agentwatch
  *
- * Provides REST API and WebSocket endpoints for monitoring
- * coding agents and git repositories.
+ * @deprecated Use @agentwatch/watcher and @agentwatch/analyzer instead.
+ *
+ * The combined daemon is deprecated. The new architecture splits functionality:
+ * - @agentwatch/watcher - Real-time monitoring daemon (port 8420)
+ * - @agentwatch/analyzer - On-demand analysis dashboard (port 8421)
+ *
+ * This package remains for backwards compatibility but will be removed
+ * in a future release.
  */
+
+// Log deprecation warning when module is imported
+if (process.env.NODE_ENV !== "test") {
+  console.warn(
+    "[@agentwatch/daemon] DEPRECATED: Use @agentwatch/watcher and @agentwatch/analyzer instead"
+  );
+}
 
 export {
   DaemonServer,
