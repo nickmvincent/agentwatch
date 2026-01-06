@@ -86,7 +86,7 @@ export function registerManagedSessionRoutes(
       body.cwd
     );
 
-    return c.json({ id: session.id, ...sessionToDict(session) });
+    return c.json(sessionToDict(session));
   });
 
   /**

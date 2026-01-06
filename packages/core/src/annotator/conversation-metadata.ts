@@ -1,75 +1,61 @@
 /**
- * Conversation metadata store (persistent conversation names).
+ * Conversation metadata store for persistent naming.
  *
  * Stores user-defined conversation names on disk so they survive restarts.
+ *
+ * Storage: ~/.agentwatch/conversation-metadata.json
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { homedir } from "os";
-import { dirname, join } from "path";
 import type {
   ConversationMetadata,
   ConversationMetadataInput,
   ConversationMetadataStore
-} from "@agentwatch/core";
+} from "../types";
+import { CONVERSATION_METADATA_FILE } from "../storage/paths";
+import { expandPath, loadJson, saveJson } from "../storage";
 
-const STORE_PATH = "~/.agentwatch/conversation-metadata.json";
-
-function expandPath(path: string): string {
-  if (path.startsWith("~")) {
-    return join(homedir(), path.slice(1));
-  }
-  return path;
-}
-
-function ensureDir(filePath: string): void {
-  const dir = dirname(filePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
-
+/**
+ * Get the path to the conversation metadata store file.
+ */
 export function getConversationMetadataStorePath(): string {
-  return expandPath(STORE_PATH);
+  return expandPath(CONVERSATION_METADATA_FILE);
 }
 
+/**
+ * Load conversation metadata store from disk.
+ */
 export function loadConversationMetadataStore(): ConversationMetadataStore {
-  const path = getConversationMetadataStorePath();
-  if (!existsSync(path)) {
-    return {
-      metadata: {},
-      updatedAt: new Date().toISOString(),
-      version: 1
-    };
-  }
+  const defaultStore: ConversationMetadataStore = {
+    metadata: {},
+    updatedAt: new Date().toISOString(),
+    version: 1
+  };
 
-  try {
-    const data = JSON.parse(
-      readFileSync(path, "utf-8")
-    ) as Partial<ConversationMetadataStore>;
-    return {
-      metadata: data.metadata ?? {},
-      updatedAt: data.updatedAt ?? new Date().toISOString(),
-      version: data.version ?? 1
-    };
-  } catch {
-    return {
-      metadata: {},
-      updatedAt: new Date().toISOString(),
-      version: 1
-    };
-  }
+  const data = loadJson<Partial<ConversationMetadataStore>>(
+    CONVERSATION_METADATA_FILE,
+    defaultStore
+  );
+
+  return {
+    metadata: data.metadata ?? {},
+    updatedAt: data.updatedAt ?? new Date().toISOString(),
+    version: data.version ?? 1
+  };
 }
 
+/**
+ * Save conversation metadata store to disk.
+ */
 export function saveConversationMetadataStore(
   store: ConversationMetadataStore
 ): void {
-  const path = getConversationMetadataStorePath();
-  ensureDir(path);
   store.updatedAt = new Date().toISOString();
-  writeFileSync(path, JSON.stringify(store, null, 2));
+  saveJson(CONVERSATION_METADATA_FILE, store);
 }
 
+/**
+ * Get all conversation metadata entries.
+ */
 export function getAllConversationMetadata(): Record<
   string,
   ConversationMetadata
@@ -78,6 +64,9 @@ export function getAllConversationMetadata(): Record<
   return store.metadata;
 }
 
+/**
+ * Get conversation metadata by ID.
+ */
 export function getConversationMetadata(
   conversationId: string
 ): ConversationMetadata | null {
@@ -85,6 +74,9 @@ export function getConversationMetadata(
   return store.metadata[conversationId] ?? null;
 }
 
+/**
+ * Set conversation metadata.
+ */
 export function setConversationMetadata(
   conversationId: string,
   input: ConversationMetadataInput
@@ -106,6 +98,9 @@ export function setConversationMetadata(
   return metadata;
 }
 
+/**
+ * Delete conversation metadata by ID.
+ */
 export function deleteConversationMetadata(conversationId: string): boolean {
   const store = loadConversationMetadataStore();
   if (!store.metadata[conversationId]) {

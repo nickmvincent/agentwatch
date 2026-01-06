@@ -6,8 +6,8 @@
 
 import type { Hono } from "hono";
 import type { DataStore } from "@agentwatch/monitor";
-import type { AgentMetadataInput } from "@agentwatch/core";
 import {
+  type AgentMetadataInput,
   deleteAgentMetadata,
   getAgentMetadata,
   getAgentMetadataById,
@@ -16,7 +16,7 @@ import {
   searchAgentMetadata,
   setAgentMetadata,
   setAgentMetadataById
-} from "../agent-metadata";
+} from "@agentwatch/core";
 
 export function registerAgentMetadataRoutes(
   app: Hono,

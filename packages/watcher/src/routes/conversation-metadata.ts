@@ -3,13 +3,13 @@
  */
 
 import type { Hono } from "hono";
-import type { ConversationMetadataInput } from "@agentwatch/core";
 import {
+  type ConversationMetadataInput,
   deleteConversationMetadata,
   getAllConversationMetadata,
   getConversationMetadata,
   setConversationMetadata
-} from "../conversation-metadata";
+} from "@agentwatch/core";
 
 export function registerConversationMetadataRoutes(app: Hono): void {
   app.get("/api/conversation-metadata", (c) => {

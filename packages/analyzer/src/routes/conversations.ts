@@ -29,7 +29,7 @@ import {
   getAllConversationMetadata,
   getConversationMetadata,
   setConversationMetadata
-} from "../conversation-metadata";
+} from "@agentwatch/core";
 
 /**
  * Read hook sessions from disk JSONL files.

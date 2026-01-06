@@ -113,7 +113,7 @@ export function registerEnrichmentRoutes(app: Hono): void {
         : null);
 
     const existing = findEnrichmentsBySessionId(sessionId);
-    const ref = resolveSessionRef(sessionId, existing);
+    const ref = resolveSessionRef(sessionId, existing ?? undefined);
 
     const enrichment = setManualAnnotation(ref, feedback, {
       notes: body.notes,
