@@ -5090,9 +5090,26 @@ export function createApp(state: AppState): Hono {
     const allHookSessions = state.hookStore.getAllSessions(1000);
     const hookSessions = allHookSessions.filter((s) => s.startTime >= cutoffMs);
 
-    // Get local transcripts and filter by time
-    const allTranscripts = await discoverLocalTranscripts();
-    const transcripts = allTranscripts.filter((t) => t.modifiedAt >= cutoffMs);
+    // Get transcripts from index (fast!) instead of disk scan
+    const transcripts: LocalTranscript[] = [];
+    if (state.transcriptIndex) {
+      for (const entry of Object.values(state.transcriptIndex.entries)) {
+        if (entry.modifiedAt >= cutoffMs) {
+          transcripts.push({
+            id: entry.id,
+            agent: entry.agent as "claude" | "codex" | "gemini",
+            path: entry.path,
+            name: entry.name,
+            modifiedAt: entry.modifiedAt,
+            sizeBytes: entry.sizeBytes,
+            projectDir: entry.projectDir,
+            messageCount: entry.messageCount,
+            startTime: entry.startTime,
+            endTime: entry.endTime
+          });
+        }
+      }
+    }
 
     // Build tool usages map
     const toolUsagesMap = new Map<string, ToolUsage[]>();
@@ -5153,21 +5170,11 @@ export function createApp(state: AppState): Hono {
     };
 
     for (const conv of correlated) {
-      let cost = conv.hookSession?.estimatedCostUsd ?? 0;
-      let inputTokens = conv.hookSession?.totalInputTokens ?? 0;
-      let outputTokens = conv.hookSession?.totalOutputTokens ?? 0;
-
-      if (!conv.hookSession && conv.transcript) {
-        const parsed = await readTranscriptByPath(
-          conv.transcript.agent,
-          conv.transcript.path
-        );
-        if (parsed) {
-          cost = parsed.estimatedCostUsd ?? 0;
-          inputTokens = parsed.totalInputTokens ?? 0;
-          outputTokens = parsed.totalOutputTokens ?? 0;
-        }
-      }
+      // Use hook session data (fast) - don't parse transcripts (slow)
+      // For transcript-only sessions, cost is 0 unless we have enrichments
+      const cost = conv.hookSession?.estimatedCostUsd ?? 0;
+      const inputTokens = conv.hookSession?.totalInputTokens ?? 0;
+      const outputTokens = conv.hookSession?.totalOutputTokens ?? 0;
 
       // Check enrichment for quality
       let isSuccess = false;

@@ -147,6 +147,17 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Track tabs that have been visited (for lazy loading)
+  const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(new Set(["agents"]));
+
+  // Mark tab as visited when activated
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      return new Set([...prev, activeTab]);
+    });
+  }, [activeTab]);
+
   const toggleHidePort = useCallback((port: number) => {
     setHiddenPorts((prev) => {
       const next = new Set(prev);
@@ -498,21 +509,32 @@ function App() {
               />
             )}
 
-            {activeTab === "projects" && <ProjectsPane repos={repos} />}
-
-            {activeTab === "conversations" && (
-              <ConversationsPane
-                onNavigateToTab={(tab) => setActiveTab(tab as Tab)}
-              />
+            {/* Heavy panes: lazy load on first visit, keep mounted to preserve state */}
+            {visitedTabs.has("projects") && (
+              <div className={activeTab === "projects" ? "" : "hidden"}>
+                <ProjectsPane repos={repos} />
+              </div>
             )}
 
-            {activeTab === "analytics" && (
-              <AnalyticsPane
-                onNavigateToConversations={() => setActiveTab("conversations")}
-                hookSessions={hookSessions}
-                recentToolUsages={recentToolUsages}
-                sessionTokens={sessionTokens}
-              />
+            {visitedTabs.has("conversations") && (
+              <div className={activeTab === "conversations" ? "" : "hidden"}>
+                <ConversationsPane
+                  onNavigateToTab={(tab) => setActiveTab(tab as Tab)}
+                />
+              </div>
+            )}
+
+            {visitedTabs.has("analytics") && (
+              <div className={activeTab === "analytics" ? "" : "hidden"}>
+                <AnalyticsPane
+                  onNavigateToConversations={() =>
+                    setActiveTab("conversations")
+                  }
+                  hookSessions={hookSessions}
+                  recentToolUsages={recentToolUsages}
+                  sessionTokens={sessionTokens}
+                />
+              </div>
             )}
 
             {activeTab === "ports" && (
