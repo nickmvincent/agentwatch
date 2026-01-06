@@ -684,7 +684,7 @@ function ActivityFeed({
   events,
   formatTime,
   recentToolUsages,
-  sessionMap
+  sessionMap: _sessionMap
 }: {
   events: ActivityEvent[];
   formatTime: (ts: number) => string;
