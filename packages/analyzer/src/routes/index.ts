@@ -41,3 +41,4 @@ export {
 export { registerAnalyticsRoutes } from "./analytics";
 export { registerProjectRoutes } from "./projects";
 export { registerShareRoutes } from "./share";
+export { registerConversationRoutes } from "./conversations";

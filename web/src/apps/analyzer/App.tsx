@@ -1,12 +1,11 @@
 /**
  * Analyzer App - Full analysis dashboard.
  *
- * Tabs: Sessions | Analytics | Projects | Share | Command | Docs | Settings
+ * Tabs: Sessions | Analytics | Projects | Share | Docs | Settings
  */
 
 import { useEffect, useState } from "react";
 import { AnalyticsPane } from "../../components/AnalyticsPane";
-import { CommandCenterPane } from "../../components/CommandCenterPane";
 import { ContribPane } from "../../components/ContribPane";
 import { ConversationsPane } from "../../components/ConversationsPane";
 import { DocumentationPane } from "../../components/DocumentationPane";
@@ -23,7 +22,6 @@ type Tab =
   | "analytics"
   | "projects"
   | "share"
-  | "command"
   | "docs"
   | "settings";
 
@@ -92,12 +90,9 @@ function AnalyzerApp() {
           setActiveTab("share");
           break;
         case "5":
-          setActiveTab("command");
-          break;
-        case "6":
           setActiveTab("docs");
           break;
-        case "7":
+        case "6":
           setActiveTab("settings");
           break;
       }
@@ -112,7 +107,6 @@ function AnalyzerApp() {
     { id: "analytics", label: "Analytics" },
     { id: "projects", label: "Projects" },
     { id: "share", label: "Share" },
-    { id: "command", label: "Command" },
     { id: "docs", label: "Docs" },
     { id: "settings", label: "Settings" }
   ];
@@ -155,7 +149,6 @@ function AnalyzerApp() {
         {activeTab === "share" && (
           <ContribPane onNavigateToTab={(tab) => setActiveTab(tab as Tab)} />
         )}
-        {activeTab === "command" && <CommandCenterPane managedSessions={[]} />}
         {activeTab === "docs" && <DocumentationPane />}
         {activeTab === "settings" && (
           <SettingsPane

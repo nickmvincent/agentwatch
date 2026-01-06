@@ -1,11 +1,12 @@
 /**
  * Watcher App - Streamlined real-time monitoring dashboard.
  *
- * Tabs: Agents | Repos | Ports | Timeline
+ * Tabs: Agents | Repos | Ports | Timeline | Command
  */
 
 import { useEffect, useState } from "react";
 import { AgentPane } from "../../components/AgentPane";
+import { CommandCenterPane } from "../../components/CommandCenterPane";
 import { PortsPane } from "../../components/PortsPane";
 import { ConversationProvider } from "../../context/ConversationContext";
 import { DataProvider } from "../../context/DataProvider";
@@ -13,7 +14,7 @@ import { LoadingProvider } from "../../context/LoadingContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { WatcherHeader } from "./WatcherHeader";
 
-type Tab = "agents" | "repos" | "ports" | "timeline";
+type Tab = "agents" | "repos" | "ports" | "timeline" | "command";
 type HideableTab = "hooks" | "repos" | "ports";
 
 function WatcherApp() {
@@ -60,6 +61,9 @@ function WatcherApp() {
         case "4":
           setActiveTab("timeline");
           break;
+        case "5":
+          setActiveTab("command");
+          break;
         case "r":
           refresh();
           break;
@@ -78,7 +82,8 @@ function WatcherApp() {
     { id: "agents", label: "Agents", count: agents.length },
     { id: "repos", label: "Repos", count: repos.length },
     { id: "ports", label: "Ports", count: ports.length },
-    { id: "timeline", label: "Timeline", count: activityEvents.length }
+    { id: "timeline", label: "Timeline", count: activityEvents.length },
+    { id: "command", label: "Command", count: managedSessions.length }
   ];
 
   return (
@@ -145,6 +150,9 @@ function WatcherApp() {
           />
         )}
         {activeTab === "timeline" && <TimelinePane events={activityEvents} />}
+        {activeTab === "command" && (
+          <CommandCenterPane managedSessions={managedSessions} />
+        )}
       </main>
     </div>
   );

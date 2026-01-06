@@ -209,26 +209,35 @@ export function registerAnalyticsRoutes(app: Hono): void {
    *
    * Get analytics grouped by project.
    *
+   * @query days - Number of days to include (default: 30)
    * @returns {
-   *   projects: Array<{ project_id, project_name, session_count, avg_quality }>,
-   *   unassigned: { session_count, avg_quality }
+   *   days: number,
+   *   breakdown: ProjectAnalyticsItem[],
+   *   unassigned: { session_count, total_cost_usd, ... }
    * }
    */
   app.get("/api/analytics/by-project", async (c) => {
     try {
+      const days = Number.parseInt(c.req.query("days") ?? "30", 10);
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+
       const config = loadAnalyzerConfig();
       const index = loadTranscriptIndex();
-      const transcripts = getIndexedTranscripts(index, {});
+      const allTranscripts = getIndexedTranscripts(index, {});
+      const transcripts = allTranscripts.filter((t) => t.modifiedAt >= cutoff);
       const enrichments = getAllEnrichments();
 
-      // Group transcripts by project
+      // Group transcripts by project with full stats
       const byProject = new Map<
         string,
         {
           name: string;
-          count: number;
-          quality_sum: number;
-          quality_count: number;
+          session_count: number;
+          total_cost_usd: number;
+          total_input_tokens: number;
+          total_output_tokens: number;
+          success_count: number;
+          failure_count: number;
         }
       >();
 
@@ -236,18 +245,34 @@ export function registerAnalyticsRoutes(app: Hono): void {
       for (const project of config.projects) {
         byProject.set(project.id, {
           name: project.name,
-          count: 0,
-          quality_sum: 0,
-          quality_count: 0
+          session_count: 0,
+          total_cost_usd: 0,
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          success_count: 0,
+          failure_count: 0
         });
       }
 
       // Unassigned bucket
-      const unassigned = { count: 0, quality_sum: 0, quality_count: 0 };
+      const unassigned = {
+        session_count: 0,
+        total_cost_usd: 0,
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+        success_count: 0,
+        failure_count: 0
+      };
 
       for (const t of transcripts) {
         const enrichment = enrichments[`transcript:${t.id}`];
-        const qualityScore = enrichment?.qualityScore?.overall;
+        const outcome = enrichment?.outcomeSignals;
+
+        // Determine success/failure from test results
+        const testsRan = outcome?.testResults?.ran ?? false;
+        const testsPassed =
+          testsRan && (outcome?.testResults?.failed ?? 0) === 0;
+        const testsFailed = testsRan && (outcome?.testResults?.failed ?? 0) > 0;
 
         // Find matching project
         let matched = false;
@@ -256,10 +281,11 @@ export function registerAnalyticsRoutes(app: Hono): void {
             if (t.projectDir?.startsWith(path)) {
               const stats = byProject.get(project.id);
               if (stats) {
-                stats.count++;
-                if (qualityScore !== undefined) {
-                  stats.quality_sum += qualityScore;
-                  stats.quality_count++;
+                stats.session_count++;
+                if (testsPassed) {
+                  stats.success_count++;
+                } else if (testsFailed) {
+                  stats.failure_count++;
                 }
               }
               matched = true;
@@ -270,38 +296,43 @@ export function registerAnalyticsRoutes(app: Hono): void {
         }
 
         if (!matched) {
-          unassigned.count++;
-          if (qualityScore !== undefined) {
-            unassigned.quality_sum += qualityScore;
-            unassigned.quality_count++;
+          unassigned.session_count++;
+          if (testsPassed) {
+            unassigned.success_count++;
+          } else if (testsFailed) {
+            unassigned.failure_count++;
           }
         }
       }
 
-      const projects = Array.from(byProject.entries()).map(([id, stats]) => ({
+      const breakdown = Array.from(byProject.entries()).map(([id, stats]) => ({
         project_id: id,
         project_name: stats.name,
-        session_count: stats.count,
-        avg_quality:
-          stats.quality_count > 0
-            ? Math.round(stats.quality_sum / stats.quality_count)
-            : null
+        session_count: stats.session_count,
+        total_cost_usd: stats.total_cost_usd,
+        total_input_tokens: stats.total_input_tokens,
+        total_output_tokens: stats.total_output_tokens,
+        success_count: stats.success_count,
+        failure_count: stats.failure_count
       }));
 
       return c.json({
-        projects,
-        unassigned: {
-          session_count: unassigned.count,
-          avg_quality:
-            unassigned.quality_count > 0
-              ? Math.round(unassigned.quality_sum / unassigned.quality_count)
-              : null
-        }
+        days,
+        breakdown,
+        unassigned
       });
     } catch {
       return c.json({
-        projects: [],
-        unassigned: { session_count: 0, avg_quality: null }
+        days: 30,
+        breakdown: [],
+        unassigned: {
+          session_count: 0,
+          total_cost_usd: 0,
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          success_count: 0,
+          failure_count: 0
+        }
       });
     }
   });

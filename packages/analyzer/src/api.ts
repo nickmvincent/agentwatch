@@ -59,6 +59,13 @@
  * - `GET /api/share/status` - Share configuration status
  * - `POST /api/share/export` - Export data
  *
+ * ### Conversations
+ * - `GET /api/contrib/correlated` - Correlated sessions + transcripts
+ * - `GET /api/conversation-metadata` - All conversation metadata
+ * - `GET /api/conversation-metadata/:id` - Get conversation metadata
+ * - `PATCH /api/conversation-metadata/:id` - Update conversation metadata
+ * - `DELETE /api/conversation-metadata/:id` - Delete conversation metadata
+ *
  * @module api
  */
 
@@ -78,7 +85,8 @@ import {
   registerAnnotationRoutes,
   registerAnalyticsRoutes,
   registerProjectRoutes,
-  registerShareRoutes
+  registerShareRoutes,
+  registerConversationRoutes
 } from "./routes";
 
 /**
@@ -157,6 +165,9 @@ export function createAnalyzerApp(state: AnalyzerAppState): Hono {
 
   // Share and export
   registerShareRoutes(app);
+
+  // Conversations (correlated sessions + transcripts)
+  registerConversationRoutes(app);
 
   // =========== Static File Serving ===========
   // Look for built web UI in multiple locations
