@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLoading } from "../context/LoadingContext";
-import {
-  fetchAnalyticsByProject,
-  fetchDailyStats,
-  fetchToolStats
-} from "../api/client";
+import { fetchDailyStats, fetchToolStats } from "../api/client";
 import type {
   AnalyticsByProjectResult,
   AnalyticsDashboard,
@@ -441,14 +437,13 @@ export function AnalyticsPane({
     setLoadErrors([]);
     try {
       // Use combined endpoint for most analytics data (cached via DataProvider)
+      // Combined now includes by_project with token data from parsed transcripts
       const results = await Promise.allSettled([
-        getAnalytics(transcriptDays), // Combined: dashboard, success_trend, cost_by_type, tool_retries, quality_distribution, loops
+        getAnalytics(transcriptDays), // Combined: dashboard, success_trend, cost_by_type, tool_retries, quality_distribution, loops, by_project
         fetchToolStats(), // Separate: from hook store
-        fetchDailyStats(transcriptDays), // Separate: from hook store
-        fetchAnalyticsByProject(transcriptDays) // Separate: uses correlation
+        fetchDailyStats(transcriptDays) // Separate: from hook store
       ]);
-      const [combinedResult, toolStatsResult, dailyResult, projectResult] =
-        results;
+      const [combinedResult, toolStatsResult, dailyResult] = results;
       const errors: LoadError[] = [];
 
       // Process combined analytics
@@ -469,6 +464,16 @@ export function AnalyticsPane({
           days: combined.days,
           ...combined.loops
         });
+        // Use by_project from combined response (includes token data from parsed transcripts)
+        if (combined.by_project) {
+          setProjectAnalytics({
+            days: combined.days,
+            breakdown: combined.by_project.breakdown,
+            unassigned: combined.by_project.unassigned
+          });
+        } else {
+          setProjectAnalytics(null);
+        }
       } else {
         setDashboard(null);
         setSuccessTrend([]);
@@ -477,6 +482,7 @@ export function AnalyticsPane({
         setQualityPercentiles(null);
         setToolRetries(null);
         setLoopsAnalytics(null);
+        setProjectAnalytics(null);
         errors.push({
           name: "combined-analytics",
           message: getErrorMessage(combinedResult.reason)
@@ -500,16 +506,6 @@ export function AnalyticsPane({
         errors.push({
           name: "daily-stats",
           message: getErrorMessage(dailyResult.reason)
-        });
-      }
-
-      if (projectResult.status === "fulfilled") {
-        setProjectAnalytics(projectResult.value);
-      } else {
-        setProjectAnalytics(null);
-        errors.push({
-          name: "analytics-by-project",
-          message: getErrorMessage(projectResult.reason)
         });
       }
 

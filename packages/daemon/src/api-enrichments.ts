@@ -15,9 +15,11 @@ import type {
   WorkflowStatus
 } from "@agentwatch/core";
 import type { ParsedTranscript } from "./local-logs";
+import type { Config } from "./config";
 
 export interface EnrichmentState {
   hookStore: HookStore;
+  config: Config;
 }
 
 // Helper to convert session ref
@@ -1669,6 +1671,164 @@ export function registerEnrichmentEndpoints(
       by_pattern_type: Object.fromEntries(patternTypes)
     };
 
+    // ========== By Project ==========
+    const projects = state.config.projects?.projects ?? [];
+    const projectStats = new Map<
+      string,
+      {
+        project_id: string;
+        project_name: string;
+        session_count: number;
+        total_cost_usd: number;
+        total_input_tokens: number;
+        total_output_tokens: number;
+        success_count: number;
+        failure_count: number;
+      }
+    >();
+
+    // Initialize all projects
+    for (const project of projects) {
+      projectStats.set(project.id, {
+        project_id: project.id,
+        project_name: project.name,
+        session_count: 0,
+        total_cost_usd: 0,
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+        success_count: 0,
+        failure_count: 0
+      });
+    }
+
+    const unassigned = {
+      session_count: 0,
+      total_cost_usd: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      success_count: 0,
+      failure_count: 0
+    };
+
+    // Helper to match path to project
+    const matchProject = (path: string | null | undefined) => {
+      if (!path) return null;
+      for (const project of projects) {
+        for (const projectPath of project.paths) {
+          if (
+            path === projectPath ||
+            path.startsWith(projectPath + "/") ||
+            projectPath.startsWith(path + "/")
+          ) {
+            return project;
+          }
+        }
+      }
+      return null;
+    };
+
+    // Aggregate hook sessions
+    for (const session of recentHookSessions) {
+      const project = matchProject(session.cwd);
+      const enrichment = allEnrichments[`hook:${session.sessionId}`];
+      const qualityScore = enrichment?.qualityScore?.overall;
+      const isSuccess =
+        qualityScore !== undefined &&
+        qualityScore !== null &&
+        qualityScore >= 60;
+      const isFailure =
+        qualityScore !== undefined &&
+        qualityScore !== null &&
+        qualityScore < 40;
+
+      // Get token data from parsed transcript if available (hook sessions have 0 tokens)
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let cost = session.estimatedCostUsd || 0;
+
+      // Check if we have transcript data for this session
+      if (session.transcriptPath) {
+        const transcriptId = recentTranscripts.find(
+          (t) => t.path === session.transcriptPath
+        )?.id;
+        if (transcriptId) {
+          const parsed = parsedTranscripts.get(transcriptId);
+          if (parsed) {
+            inputTokens = parsed.input;
+            outputTokens = parsed.output;
+            cost = parsed.cost || cost;
+          }
+        }
+      }
+
+      if (project) {
+        const stats = projectStats.get(project.id);
+        if (stats) {
+          stats.session_count++;
+          stats.total_cost_usd += cost;
+          stats.total_input_tokens += inputTokens;
+          stats.total_output_tokens += outputTokens;
+          if (isSuccess) stats.success_count++;
+          if (isFailure) stats.failure_count++;
+        }
+      } else {
+        unassigned.session_count++;
+        unassigned.total_cost_usd += cost;
+        unassigned.total_input_tokens += inputTokens;
+        unassigned.total_output_tokens += outputTokens;
+        if (isSuccess) unassigned.success_count++;
+        if (isFailure) unassigned.failure_count++;
+      }
+    }
+
+    // Aggregate transcript-only sessions
+    for (const transcript of transcriptOnly) {
+      const project = matchProject(transcript.projectDir);
+      const enrichment = allEnrichments[`transcript:${transcript.id}`];
+      const transcriptQualityScore = enrichment?.qualityScore?.overall;
+      const isSuccess =
+        transcriptQualityScore !== undefined &&
+        transcriptQualityScore !== null &&
+        transcriptQualityScore >= 60;
+      const isFailure =
+        transcriptQualityScore !== undefined &&
+        transcriptQualityScore !== null &&
+        transcriptQualityScore < 40;
+      const parsed = parsedTranscripts.get(transcript.id);
+
+      if (project) {
+        const stats = projectStats.get(project.id);
+        if (stats) {
+          stats.session_count++;
+          stats.total_cost_usd += parsed?.cost || 0;
+          stats.total_input_tokens += parsed?.input || 0;
+          stats.total_output_tokens += parsed?.output || 0;
+          if (isSuccess) stats.success_count++;
+          if (isFailure) stats.failure_count++;
+        }
+      } else {
+        unassigned.session_count++;
+        unassigned.total_cost_usd += parsed?.cost || 0;
+        unassigned.total_input_tokens += parsed?.input || 0;
+        unassigned.total_output_tokens += parsed?.output || 0;
+        if (isSuccess) unassigned.success_count++;
+        if (isFailure) unassigned.failure_count++;
+      }
+    }
+
+    const by_project = {
+      breakdown: Array.from(projectStats.values())
+        .map((s) => ({
+          ...s,
+          total_cost_usd: Math.round(s.total_cost_usd * 100) / 100
+        }))
+        .sort((a, b) => b.session_count - a.session_count),
+      unassigned: {
+        ...unassigned,
+        total_cost_usd: Math.round(unassigned.total_cost_usd * 100) / 100
+      }
+    };
+
     // Return combined response
     return c.json({
       days,
@@ -1677,7 +1837,8 @@ export function registerEnrichmentEndpoints(
       cost_by_type,
       tool_retries,
       quality_distribution,
-      loops
+      loops,
+      by_project
     });
   });
 }

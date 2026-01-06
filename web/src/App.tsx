@@ -264,9 +264,6 @@ function App() {
   const visiblePortsCount = ports.filter(
     (p) => !hiddenPorts.has(p.port)
   ).length;
-  // Count agents with active hook sessions or managed sessions (enhanced monitoring)
-  const enhancedCount =
-    hookSessions.filter((s) => s.active).length + managedSessions.length;
 
   // If active tab is hidden, switch to agents
   useEffect(() => {
@@ -299,7 +296,6 @@ function App() {
             setActiveTab={setActiveTab}
             visitedTabs={visitedTabs}
             tabActivatedAt={tabActivatedAt}
-            enhancedCount={enhancedCount}
             visiblePortsCount={visiblePortsCount}
             dirtyRepos={dirtyRepos}
             paused={paused}
@@ -337,7 +333,6 @@ function AppInner({
   setActiveTab,
   visitedTabs,
   tabActivatedAt,
-  enhancedCount,
   visiblePortsCount,
   dirtyRepos,
   paused,
@@ -370,7 +365,6 @@ function AppInner({
   setActiveTab: (tab: Tab) => void;
   visitedTabs: Set<Tab>;
   tabActivatedAt: Record<Tab, number>;
-  enhancedCount: number;
   visiblePortsCount: number;
   dirtyRepos: number;
   paused: boolean;
@@ -409,15 +403,12 @@ function AppInner({
               }`}
             >
               Agents
-              {(agents.length > 0 || enhancedCount > 0) && (
+              {agents.length > 0 && (
                 <span
                   className="px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full"
-                  title={`${agents.length} running agent${agents.length !== 1 ? "s" : ""}${enhancedCount > 0 ? `, ${enhancedCount} enhanced` : ""}`}
+                  title={`${agents.length} running agent${agents.length !== 1 ? "s" : ""}`}
                 >
                   {agents.length}
-                  {enhancedCount > 0 && (
-                    <span className="text-green-300"> · {enhancedCount}</span>
-                  )}
                 </span>
               )}
             </button>

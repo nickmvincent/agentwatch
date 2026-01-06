@@ -6933,7 +6933,8 @@ export function createApp(state: AppState): Hono {
 
   // Register enrichment & analytics endpoints
   registerEnrichmentEndpoints(app, () => ({
-    hookStore: state.hookStore
+    hookStore: state.hookStore,
+    config: state.config
   }));
 
   // Register audit log endpoints

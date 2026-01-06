@@ -1473,6 +1473,17 @@ export interface AnalyticsCombinedResult {
     total_retries: number;
     by_pattern_type: Record<string, number>;
   };
+  by_project?: {
+    breakdown: ProjectAnalyticsItem[];
+    unassigned: {
+      session_count: number;
+      total_cost_usd: number;
+      total_input_tokens: number;
+      total_output_tokens: number;
+      success_count: number;
+      failure_count: number;
+    };
+  };
 }
 
 // Audit Log Types
