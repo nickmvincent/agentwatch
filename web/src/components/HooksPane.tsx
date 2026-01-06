@@ -729,7 +729,7 @@ function ActivityFeed({
       case "Bash":
         if (input.command) {
           const cmd = String(input.command);
-          return cmd.length > 50 ? cmd.slice(0, 47) + "..." : cmd;
+          return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd;
         }
         return null;
       case "Glob":
@@ -745,6 +745,63 @@ function ActivityFeed({
           return String(input.path).split("/").slice(-2).join("/");
         return null;
     }
+  };
+
+  // Helper to render tool start event info
+  const renderToolStart = (event: ActivityEvent) => {
+    const toolName = String(event.data.tool_name);
+    const toolUseId = String(event.data.tool_use_id || "");
+    const usage = toolUsageMap.get(toolUseId);
+    const inputSummary = usage
+      ? getToolInputSummary(toolName, usage.tool_input)
+      : null;
+    return (
+      <>
+        <span className="text-xs text-cyan-400">{toolName}</span>
+        {inputSummary && (
+          <span
+            className="text-xs text-gray-500 font-mono truncate max-w-[200px]"
+            title={inputSummary}
+          >
+            {inputSummary}
+          </span>
+        )}
+      </>
+    );
+  };
+
+  // Helper to render tool end event info
+  const renderToolEnd = (event: ActivityEvent) => {
+    const toolName = String(event.data.tool_name);
+    const toolUseId = String(event.data.tool_use_id || "");
+    const usage = toolUsageMap.get(toolUseId);
+    const inputSummary = usage
+      ? getToolInputSummary(toolName, usage.tool_input)
+      : null;
+    const durationMs = Number(event.data.duration_ms);
+    const durationStr =
+      event.data.duration_ms != null
+        ? ` (${durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`})`
+        : "";
+    return (
+      <>
+        <span
+          className={`text-xs ${event.data.success === false ? "text-red-400" : "text-cyan-400"}`}
+        >
+          {toolName}
+          {durationStr}
+          {event.data.success === false && " FAILED"}
+        </span>
+        {inputSummary && (
+          <span
+            className="text-xs text-gray-500 font-mono truncate max-w-[200px]"
+            title={inputSummary}
+          >
+            {inputSummary}
+          </span>
+        )}
+      </>
+    );
   };
 
   const filteredEvents =
@@ -853,59 +910,8 @@ function ActivityFeed({
                     </span>
                   )}
                   {/* Tool usage - with input summary from detailed tool data */}
-                  {event.type === "tool_start" &&
-                    (() => {
-                      const toolName = String(event.data.tool_name);
-                      const toolUseId = String(event.data.tool_use_id || "");
-                      const usage = toolUsageMap.get(toolUseId);
-                      const inputSummary = usage
-                        ? getToolInputSummary(toolName, usage.tool_input)
-                        : null;
-                      return (
-                        <>
-                          <span className="text-xs text-cyan-400">
-                            {toolName}
-                          </span>
-                          {inputSummary && (
-                            <span
-                              className="text-xs text-gray-500 font-mono truncate max-w-[200px]"
-                              title={inputSummary}
-                            >
-                              {inputSummary}
-                            </span>
-                          )}
-                        </>
-                      );
-                    })()}
-                  {event.type === "tool_end" &&
-                    (() => {
-                      const toolName = String(event.data.tool_name);
-                      const toolUseId = String(event.data.tool_use_id || "");
-                      const usage = toolUsageMap.get(toolUseId);
-                      const inputSummary = usage
-                        ? getToolInputSummary(toolName, usage.tool_input)
-                        : null;
-                      return (
-                        <>
-                          <span
-                            className={`text-xs ${event.data.success === false ? "text-red-400" : "text-cyan-400"}`}
-                          >
-                            {toolName}
-                            {event.data.duration_ms != null &&
-                              ` (${Number(event.data.duration_ms) < 1000 ? `${Number(event.data.duration_ms)}ms` : `${(Number(event.data.duration_ms) / 1000).toFixed(1)}s`})`}
-                            {event.data.success === false && " FAILED"}
-                          </span>
-                          {inputSummary && (
-                            <span
-                              className="text-xs text-gray-500 font-mono truncate max-w-[200px]"
-                              title={inputSummary}
-                            >
-                              {inputSummary}
-                            </span>
-                          )}
-                        </>
-                      );
-                    })()}
+                  {event.type === "tool_start" && renderToolStart(event)}
+                  {event.type === "tool_end" && renderToolEnd(event)}
                   {/* User interaction - token counts show input → output */}
                   {event.type === "response" &&
                     typeof event.data.input_tokens === "number" && (
