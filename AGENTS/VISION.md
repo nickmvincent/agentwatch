@@ -85,15 +85,6 @@ HuggingFace is currently convenient for storage/publishing, but the architecture
 - Data collective endpoints
 - Custom destinations
 
-### Two UI Surfaces
-
-| Surface | Purpose |
-|---------|---------|
-| **Static site (pages/)** | Demo/proof-of-concept for public AI community |
-| **Full web app (web/)** | Primary interface for agentwatch ecosystem |
-
-Both share core logic via `@agentwatch/pre-share`. The static site demonstrates the concepts; real contributions flow through the full software.
-
 ## Connection to Public AI Data Flywheels
 
 Agentwatch is part of a broader vision for public AI data flywheels (see paidf-mini-book concepts):
@@ -114,13 +105,6 @@ A healthy agentwatch ecosystem would show:
 - Low friction for repeat contributors
 - Trust maintained over time
 
-## Open Questions
-
-1. How to correlate hooks/process data with existing transcripts?
-2. What shared identifiers exist across collection methods?
-3. How to balance automation with user review?
-4. What's the right granularity for preference signals?
-5. How to measure contribution quality and impact?
 
 ---
 
