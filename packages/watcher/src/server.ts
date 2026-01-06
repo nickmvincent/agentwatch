@@ -30,7 +30,7 @@ import { type WatcherConfig, loadConfig } from "./config";
 import { ConnectionManager } from "./connection-manager";
 import { PidFile } from "./pid-file";
 import { SessionLogger } from "./session-logger";
-import { createWatcherApp, watcherWebsocket } from "./api";
+import { createWatcherApp, websocket } from "./api";
 
 export interface WatcherServerOptions {
   config?: WatcherConfig;
@@ -128,7 +128,7 @@ export class WatcherServer {
       hostname: bindHost,
       port: bindPort,
       fetch: app.fetch,
-      websocket: watcherWebsocket(this.connectionManager)
+      websocket
     });
 
     this.started = true;

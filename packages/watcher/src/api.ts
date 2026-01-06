@@ -38,7 +38,10 @@ import type { WatcherConfig } from "./config";
 import type { ConnectionManager } from "./connection-manager";
 import type { SessionLogger } from "./session-logger";
 
-const { upgradeWebSocket } = createBunWebSocket();
+const { upgradeWebSocket, websocket } = createBunWebSocket();
+
+// Export websocket handler for Bun.serve
+export { websocket };
 
 export interface WatcherAppState {
   store: DataStore;
@@ -469,18 +472,4 @@ export function createWatcherApp(state: WatcherAppState): Hono {
   }
 
   return app;
-}
-
-export function watcherWebsocket(connectionManager: ConnectionManager) {
-  return {
-    open(ws: ServerWebSocket) {
-      // Connection opened
-    },
-    message(ws: ServerWebSocket, message: string | ArrayBuffer | Uint8Array) {
-      // Handle message
-    },
-    close(ws: ServerWebSocket) {
-      // Connection closed
-    }
-  };
 }
