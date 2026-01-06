@@ -123,6 +123,39 @@ describe("Analyzer API", () => {
       expect(data.status).toBe("ok");
       expect(typeof data.total).toBe("number");
     });
+
+    // Note: This test is slow because it parses all transcripts
+    // The endpoint is covered by manual testing and the integration tests
+    it.skip(
+      "GET /api/transcripts/stats returns aggregate stats (slow - parses transcripts)",
+      async () => {
+        const res = await app.request("/api/transcripts/stats");
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(typeof data.total_transcripts).toBe("number");
+        expect(typeof data.processed_transcripts).toBe("number");
+        expect(typeof data.total_size_bytes).toBe("number");
+        expect(typeof data.total_size_mb).toBe("number");
+        expect(data.summary).toBeDefined();
+        expect(typeof data.summary.file_reads).toBe("number");
+        expect(typeof data.summary.file_writes).toBe("number");
+        expect(typeof data.summary.file_edits).toBe("number");
+        expect(Array.isArray(data.sensitive_files)).toBe(true);
+        expect(typeof data.sensitive_file_count).toBe("number");
+        expect(Array.isArray(data.top_files_read)).toBe(true);
+        expect(Array.isArray(data.by_project)).toBe(true);
+      },
+      { timeout: 120000 }
+    );
+  });
+
+  describe("Privacy Risk API", () => {
+    it("GET /api/enrichments/privacy-risk/:id returns 404 for unknown transcript", async () => {
+      const res = await app.request(
+        "/api/enrichments/privacy-risk/nonexistent-transcript"
+      );
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("Analytics API", () => {

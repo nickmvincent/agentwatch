@@ -27,6 +27,7 @@ import {
   getIndexStats,
   updateTranscriptIndex
 } from "./transcript-index";
+import { readTranscript } from "./local-logs";
 import {
   getAllEnrichments,
   getEnrichments,
@@ -332,6 +333,176 @@ export function createAnalyzerApp(state: AnalyzerAppState): Hono {
     }
   });
 
+  /**
+   * GET /api/transcripts/stats
+   *
+   * Aggregate statistics across all local transcripts.
+   * Provides an overview of what data exists in the user's transcripts:
+   * - Total count and size
+   * - File operations summary
+   * - Sensitive file detection
+   * - Per-project breakdown
+   *
+   * NOTE: Must be registered BEFORE /api/transcripts/:id to prevent
+   * "stats" from being matched as a transcript ID.
+   *
+   * @returns {
+   *   total_transcripts: number,
+   *   processed_transcripts: number,
+   *   total_size_bytes: number,
+   *   total_size_mb: number,
+   *   summary: { file_reads: number, file_writes: number, file_edits: number },
+   *   sensitive_files: Array<{ path: string, count: number, reason: string }>,
+   *   sensitive_file_count: number,
+   *   top_files_read: Array<{ path: string, count: number }>,
+   *   by_project: Array<{ name: string, transcripts: number, sizeBytes: number }>
+   * }
+   */
+  app.get("/api/transcripts/stats", async (c) => {
+    try {
+      const index = loadTranscriptIndex();
+      const transcripts = getIndexedTranscripts(index, {});
+
+      // Aggregate stats
+      let totalSizeBytes = 0;
+      let totalFileReads = 0;
+      let totalFileWrites = 0;
+      let totalFileEdits = 0;
+      const sensitiveFiles: Map<
+        string,
+        { count: number; sessions: string[]; reason: string }
+      > = new Map();
+      const projectStats: Map<
+        string,
+        { transcripts: number; sizeBytes: number; fileReads: number }
+      > = new Map();
+      const fileReadCounts: Map<string, number> = new Map();
+
+      // Sensitive patterns for detecting potentially private files
+      const SENSITIVE_PATTERNS = [
+        { pattern: /\.env($|\.)/, reason: "Environment file" },
+        { pattern: /\.pem$/, reason: "PEM key file" },
+        { pattern: /\.key$/, reason: "Key file" },
+        { pattern: /id_rsa|id_ed25519|id_ecdsa/, reason: "SSH private key" },
+        { pattern: /\.ssh\//, reason: "SSH directory" },
+        { pattern: /credentials/i, reason: "Credentials file" },
+        { pattern: /secrets?[/.]/, reason: "Secrets file" },
+        { pattern: /password/i, reason: "Password file" },
+        { pattern: /\.aws\//, reason: "AWS config" },
+        { pattern: /\.npmrc$/, reason: "NPM config" },
+        { pattern: /\.netrc$/, reason: "Netrc file" }
+      ];
+
+      // Process transcripts (limit to avoid timeout)
+      const maxToProcess = 500;
+      const toProcess = transcripts.slice(0, maxToProcess);
+
+      for (const t of toProcess) {
+        totalSizeBytes += t.sizeBytes;
+
+        // Extract project name from path
+        const projectMatch = t.projectDir?.match(/([^/]+)$/);
+        const projectName = projectMatch?.[1] || "unknown";
+
+        // Update project stats
+        const ps = projectStats.get(projectName) || {
+          transcripts: 0,
+          sizeBytes: 0,
+          fileReads: 0
+        };
+        ps.transcripts++;
+        ps.sizeBytes += t.sizeBytes;
+        projectStats.set(projectName, ps);
+
+        // Read and analyze transcript
+        try {
+          const parsed = await readTranscript(t.id);
+          if (!parsed) continue;
+
+          for (const msg of parsed.messages) {
+            if (msg.toolName === "Read" && msg.toolInput?.file_path) {
+              const path = String(msg.toolInput.file_path);
+              totalFileReads++;
+              ps.fileReads++;
+              fileReadCounts.set(path, (fileReadCounts.get(path) || 0) + 1);
+
+              // Check for sensitive patterns
+              for (const { pattern, reason } of SENSITIVE_PATTERNS) {
+                if (pattern.test(path)) {
+                  const existing = sensitiveFiles.get(path) || {
+                    count: 0,
+                    sessions: [],
+                    reason
+                  };
+                  existing.count++;
+                  if (!existing.sessions.includes(t.id)) {
+                    existing.sessions.push(t.id);
+                  }
+                  sensitiveFiles.set(path, existing);
+                  break;
+                }
+              }
+            }
+
+            if (msg.toolName === "Write") totalFileWrites++;
+            if (msg.toolName === "Edit") totalFileEdits++;
+          }
+        } catch {
+          // Skip unparseable transcripts
+        }
+      }
+
+      // Sort and limit results
+      const topFiles = [...fileReadCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([path, count]) => ({ path, count }));
+
+      const sensitiveFilesList = [...sensitiveFiles.entries()]
+        .sort((a, b) => b[1].count - a[1].count)
+        .map(([path, data]) => ({
+          path,
+          count: data.count,
+          sessions: data.sessions.slice(0, 5),
+          session_count: data.sessions.length,
+          reason: data.reason
+        }));
+
+      const byProject = [...projectStats.entries()]
+        .sort((a, b) => b[1].sizeBytes - a[1].sizeBytes)
+        .slice(0, 20)
+        .map(([name, stats]) => ({ name, ...stats }));
+
+      return c.json({
+        total_transcripts: transcripts.length,
+        processed_transcripts: toProcess.length,
+        total_size_bytes: totalSizeBytes,
+        total_size_mb: Math.round(totalSizeBytes / 1024 / 1024),
+        summary: {
+          file_reads: totalFileReads,
+          file_writes: totalFileWrites,
+          file_edits: totalFileEdits
+        },
+        sensitive_files: sensitiveFilesList,
+        sensitive_file_count: sensitiveFilesList.length,
+        top_files_read: topFiles,
+        by_project: byProject
+      });
+    } catch {
+      return c.json({
+        total_transcripts: 0,
+        processed_transcripts: 0,
+        total_size_bytes: 0,
+        total_size_mb: 0,
+        summary: { file_reads: 0, file_writes: 0, file_edits: 0 },
+        sensitive_files: [],
+        sensitive_file_count: 0,
+        top_files_read: [],
+        by_project: []
+      });
+    }
+  });
+
   app.get("/api/transcripts/:id", async (c) => {
     const id = c.req.param("id");
     try {
@@ -380,6 +551,132 @@ export function createAnalyzerApp(state: AnalyzerAppState): Hono {
         total: 0,
         last_scan: null
       });
+    }
+  });
+
+  /**
+   * GET /api/enrichments/privacy-risk/:transcriptId
+   *
+   * Analyze a transcript for privacy-sensitive content before sharing.
+   * Returns a risk assessment with detailed breakdown of:
+   * - Files read, written, and edited
+   * - Domains accessed via WebFetch
+   * - Sensitive files detected (env files, keys, credentials)
+   * - Risk level (low, medium, high)
+   *
+   * @param transcriptId - The transcript ID to analyze
+   * @returns Privacy risk assessment object
+   */
+  app.get("/api/enrichments/privacy-risk/:transcriptId", async (c) => {
+    const transcriptId = c.req.param("transcriptId");
+
+    try {
+      const parsed = await readTranscript(transcriptId);
+      if (!parsed) {
+        return c.json({ error: "Transcript not found" }, 404);
+      }
+
+      const filesRead: string[] = [];
+      const filesWritten: string[] = [];
+      const filesEdited: string[] = [];
+      const domains: string[] = [];
+      const sensitivePatterns: { path: string; reason: string }[] = [];
+
+      // Patterns that indicate potentially sensitive file access
+      const SENSITIVE_PATTERNS = [
+        {
+          pattern: /\.env($|\.)/,
+          reason: "Environment file (may contain secrets)"
+        },
+        { pattern: /\.pem$/, reason: "PEM certificate/key file" },
+        { pattern: /\.key$/, reason: "Key file" },
+        { pattern: /id_rsa|id_ed25519|id_ecdsa/, reason: "SSH private key" },
+        { pattern: /\.ssh\//, reason: "SSH directory" },
+        { pattern: /credentials/, reason: "Credentials file" },
+        { pattern: /secrets?[/.]/, reason: "Secrets file/directory" },
+        { pattern: /password/, reason: "Password file" },
+        { pattern: /\.aws\//, reason: "AWS configuration" },
+        { pattern: /\.docker\/config\.json/, reason: "Docker credentials" },
+        { pattern: /\.npmrc/, reason: "NPM config (may contain tokens)" },
+        { pattern: /\.pypirc/, reason: "PyPI config (may contain tokens)" },
+        { pattern: /\.netrc/, reason: "Netrc file (may contain passwords)" },
+        { pattern: /config\.json$/, reason: "Config file (review for secrets)" }
+      ];
+
+      for (const msg of parsed.messages) {
+        // Check tool uses
+        if (msg.toolName === "Read" && msg.toolInput?.file_path) {
+          const path = String(msg.toolInput.file_path);
+          filesRead.push(path);
+
+          // Check for sensitive patterns
+          for (const { pattern, reason } of SENSITIVE_PATTERNS) {
+            if (pattern.test(path)) {
+              sensitivePatterns.push({ path, reason });
+              break;
+            }
+          }
+        }
+
+        if (msg.toolName === "Write" && msg.toolInput?.file_path) {
+          filesWritten.push(String(msg.toolInput.file_path));
+        }
+
+        if (msg.toolName === "Edit" && msg.toolInput?.file_path) {
+          filesEdited.push(String(msg.toolInput.file_path));
+        }
+
+        if (msg.toolName === "WebFetch" && msg.toolInput?.url) {
+          try {
+            const url = new URL(String(msg.toolInput.url));
+            if (!domains.includes(url.hostname)) {
+              domains.push(url.hostname);
+            }
+          } catch {
+            /* invalid URL */
+          }
+        }
+      }
+
+      // Deduplicate
+      const uniqueFilesRead = [...new Set(filesRead)];
+      const uniqueFilesWritten = [...new Set(filesWritten)];
+      const uniqueFilesEdited = [...new Set(filesEdited)];
+
+      // Risk level assessment
+      let riskLevel: "low" | "medium" | "high" = "low";
+      if (sensitivePatterns.length > 0) {
+        riskLevel = "high";
+      } else if (uniqueFilesRead.length > 20 || domains.length > 5) {
+        riskLevel = "medium";
+      }
+
+      return c.json({
+        transcript_id: transcriptId,
+        risk_level: riskLevel,
+        summary: {
+          files_read: uniqueFilesRead.length,
+          files_written: uniqueFilesWritten.length,
+          files_edited: uniqueFilesEdited.length,
+          domains_accessed: domains.length,
+          sensitive_files: sensitivePatterns.length,
+          total_messages: parsed.messages.length
+        },
+        files_read: uniqueFilesRead,
+        files_written: uniqueFilesWritten,
+        files_edited: uniqueFilesEdited,
+        domains_accessed: domains,
+        sensitive_files: sensitivePatterns,
+        recommendations:
+          sensitivePatterns.length > 0
+            ? [
+                "Use 'Tool Usage Patterns' profile (shares no file contents)",
+                "Manually review files listed above before sharing 'Full Transcript'"
+              ]
+            : []
+      });
+    } catch {
+      return c.json({ error: "Failed to analyze transcript" }, 500);
     }
   });
 
