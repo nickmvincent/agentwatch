@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { setSessionAnnotation } from "../api/client";
-import type {
-  ManualAnnotationEnrichment,
-  WorkflowStatus
-} from "../api/types";
+import type { ManualAnnotationEnrichment, WorkflowStatus } from "../api/types";
 
 interface ConversationAnnotationPanelProps {
   sessionId: string;
@@ -27,9 +24,9 @@ export function ConversationAnnotationPanel({
 }: ConversationAnnotationPanelProps) {
   const [nameValue, setNameValue] = useState(conversationName || "");
   const [isEditingName, setIsEditingName] = useState(false);
-  const [feedback, setFeedback] = useState<ManualAnnotationEnrichment["feedback"]>(
-    manualAnnotation?.feedback ?? null
-  );
+  const [feedback, setFeedback] = useState<
+    ManualAnnotationEnrichment["feedback"]
+  >(manualAnnotation?.feedback ?? null);
   const [tagsInput, setTagsInput] = useState("");
   const [notes, setNotes] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
@@ -287,9 +284,7 @@ export function ConversationAnnotationPanel({
                 id={`goal-achieved-${sessionId}`}
                 type="checkbox"
                 checked={goalAchieved === true}
-                onChange={(e) =>
-                  setGoalAchieved(e.target.checked ? true : false)
-                }
+                onChange={(e) => setGoalAchieved(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500"
               />
               <label

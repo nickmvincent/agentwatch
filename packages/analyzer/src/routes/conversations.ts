@@ -18,7 +18,10 @@ import {
   attachManagedSessions,
   getCorrelationStats
 } from "../correlation";
-import { loadTranscriptIndex, getIndexedTranscripts } from "../transcript-index";
+import {
+  loadTranscriptIndex,
+  getIndexedTranscripts
+} from "../transcript-index";
 import type { LocalTranscript } from "../local-logs";
 import { loadAnalyzerConfig } from "../config";
 import {

@@ -110,7 +110,10 @@ export function WatcherSettingsPane() {
             Reload
           </button>
           <span className="text-xs text-gray-500 ml-auto">
-            Restart with <code className="bg-gray-900/60 px-1 rounded">aw watcher restart</code>
+            Restart with{" "}
+            <code className="bg-gray-900/60 px-1 rounded">
+              aw watcher restart
+            </code>
           </span>
         </div>
       </div>

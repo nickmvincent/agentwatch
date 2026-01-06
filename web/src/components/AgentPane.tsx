@@ -372,7 +372,13 @@ export function AgentPane({
       return sortDirection === "asc" ? cmp : -cmp;
     });
     return sorted;
-  }, [filteredAgents, sortColumn, sortDirection, hookSessions, managedSessions]);
+  }, [
+    filteredAgents,
+    sortColumn,
+    sortDirection,
+    hookSessions,
+    managedSessions
+  ]);
 
   // Group agents by label or project
   const groupedAgents = useMemo(() => {
@@ -770,11 +776,7 @@ function AgentRow({
       )
     : "-";
 
-  const activityInfo = getLastActivityInfo(
-    agent,
-    hookSession,
-    managedSession
-  );
+  const activityInfo = getLastActivityInfo(agent, hookSession, managedSession);
   const lastActivity = activityInfo.timestamp
     ? formatTimeSince(activityInfo.timestamp)
     : "-";

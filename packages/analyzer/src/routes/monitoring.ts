@@ -10,6 +10,7 @@
  */
 
 import type { Hono } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AnalyzerAppState } from "../api";
 
 /**
@@ -65,7 +66,7 @@ export function registerMonitoringRoutes(
         body: JSON.stringify(body)
       });
       const data = await res.json();
-      return c.json(data, res.status);
+      return c.json(data, res.status as ContentfulStatusCode);
     } catch {
       return c.json({ error: "Watcher not available" }, 503);
     }
@@ -80,7 +81,7 @@ export function registerMonitoringRoutes(
     try {
       const res = await fetch(`${state.watcherUrl}/api/config/raw`);
       const data = await res.json();
-      return c.json(data, res.status);
+      return c.json(data, res.status as ContentfulStatusCode);
     } catch {
       return c.json({ error: "Watcher not available" }, 503);
     }
@@ -100,7 +101,7 @@ export function registerMonitoringRoutes(
         body: JSON.stringify(body)
       });
       const data = await res.json();
-      return c.json(data, res.status);
+      return c.json(data, res.status as ContentfulStatusCode);
     } catch {
       return c.json({ error: "Watcher not available" }, 503);
     }

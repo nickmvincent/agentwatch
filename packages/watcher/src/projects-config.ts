@@ -43,16 +43,20 @@ function parseProjects(content: string): ProjectConfig[] {
     const descMatch = section.match(/description\s*=\s*"([^"]+)"/);
     const pathsMatch = section.match(/paths\s*=\s*\[(.*?)\]/s);
 
-    if (!idMatch || !nameMatch || !pathsMatch) continue;
+    const id = idMatch?.[1];
+    const name = nameMatch?.[1];
+    const pathsRaw = pathsMatch?.[1];
 
-    const paths = pathsMatch[1]
+    if (!id || !name || !pathsRaw) continue;
+
+    const paths = pathsRaw
       .split(",")
       .map((p) => p.trim().replace(/^"|"$/g, ""))
       .filter(Boolean);
 
     projects.push({
-      id: idMatch[1],
-      name: nameMatch[1],
+      id,
+      name,
       paths,
       description: descMatch?.[1]
     });

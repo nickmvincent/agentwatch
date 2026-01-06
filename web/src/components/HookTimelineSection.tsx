@@ -240,9 +240,9 @@ export function HookTimelineSection({
                                 ? "bg-green-900/50 text-green-400"
                                 : event.type.includes("permission")
                                   ? "bg-yellow-900/50 text-yellow-400"
-                              : event.type.includes("user")
-                                ? "bg-purple-900/50 text-purple-400"
-                                : "bg-gray-700 text-gray-400"
+                                  : event.type.includes("user")
+                                    ? "bg-purple-900/50 text-purple-400"
+                                    : "bg-gray-700 text-gray-400"
                         }`}
                       >
                         {event.type.replace(/_/g, " ")}

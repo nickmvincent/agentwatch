@@ -124,7 +124,9 @@ test.describe("Watcher UI - Cross-App Features", () => {
     await page.goto("http://localhost:8420");
 
     // Should show sandbox ready indicator
-    await expect(page.getByText("Sandbox Ready")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Sandbox Ready")).toBeVisible({
+      timeout: 10000
+    });
   });
 
   test("WatcherHeader shows Open Analyzer button", async ({ page }) => {
@@ -263,7 +265,9 @@ test.describe("Analyzer UI - Watcher Integration", () => {
     });
   });
 
-  test("AgentStatusWidget shows when watcher is connected", async ({ page }) => {
+  test("AgentStatusWidget shows when watcher is connected", async ({
+    page
+  }) => {
     await page.goto("http://localhost:8421");
 
     // Widget should appear in bottom-right corner

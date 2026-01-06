@@ -27,7 +27,9 @@ async function globalSetup() {
         console.log("Legacy daemon is running and healthy.");
       }
     } catch (error) {
-      console.warn("Warning: Could not connect to legacy daemon at localhost:8420");
+      console.warn(
+        "Warning: Could not connect to legacy daemon at localhost:8420"
+      );
       console.warn("Run: bun run dev:daemon OR aw daemon start");
     }
   }

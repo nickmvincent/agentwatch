@@ -100,7 +100,9 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
     const updates: string[] = [];
 
     if (Array.isArray(body.roots)) {
-      config.roots = body.roots.filter((r) => typeof r === "string") as string[];
+      config.roots = body.roots.filter(
+        (r) => typeof r === "string"
+      ) as string[];
       updates.push("roots");
     }
 
@@ -108,11 +110,15 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
       const repo = body.repo as Record<string, unknown>;
       if (typeof repo.refresh_fast_seconds === "number") {
         config.repo.refreshFastSeconds = repo.refresh_fast_seconds;
-        updates.push(`repo.refresh_fast_seconds = ${repo.refresh_fast_seconds}`);
+        updates.push(
+          `repo.refresh_fast_seconds = ${repo.refresh_fast_seconds}`
+        );
       }
       if (typeof repo.refresh_slow_seconds === "number") {
         config.repo.refreshSlowSeconds = repo.refresh_slow_seconds;
-        updates.push(`repo.refresh_slow_seconds = ${repo.refresh_slow_seconds}`);
+        updates.push(
+          `repo.refresh_slow_seconds = ${repo.refresh_slow_seconds}`
+        );
       }
       if (typeof repo.include_untracked === "boolean") {
         config.repo.includeUntracked = repo.include_untracked;
@@ -157,8 +163,7 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
         updates.push(`test_gate.pass_file = ${tg.pass_file}`);
       }
       if (typeof tg.pass_file_max_age_seconds === "number") {
-        config.testGate.passFileMaxAgeSeconds =
-          tg.pass_file_max_age_seconds;
+        config.testGate.passFileMaxAgeSeconds = tg.pass_file_max_age_seconds;
         updates.push(
           `test_gate.pass_file_max_age_seconds = ${tg.pass_file_max_age_seconds}`
         );
@@ -183,11 +188,15 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
       }
       if (typeof n.hook_tool_failure === "boolean") {
         config.notifications.hookToolFailure = n.hook_tool_failure;
-        updates.push(`notifications.hook_tool_failure = ${n.hook_tool_failure}`);
+        updates.push(
+          `notifications.hook_tool_failure = ${n.hook_tool_failure}`
+        );
       }
       if (typeof n.hook_long_running === "boolean") {
         config.notifications.hookLongRunning = n.hook_long_running;
-        updates.push(`notifications.hook_long_running = ${n.hook_long_running}`);
+        updates.push(
+          `notifications.hook_long_running = ${n.hook_long_running}`
+        );
       }
       if (typeof n.long_running_threshold_seconds === "number") {
         config.notifications.longRunningThresholdSeconds =
@@ -198,19 +207,27 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
       }
       if (typeof n.hook_session_start === "boolean") {
         config.notifications.hookSessionStart = n.hook_session_start;
-        updates.push(`notifications.hook_session_start = ${n.hook_session_start}`);
+        updates.push(
+          `notifications.hook_session_start = ${n.hook_session_start}`
+        );
       }
       if (typeof n.hook_pre_tool_use === "boolean") {
         config.notifications.hookPreToolUse = n.hook_pre_tool_use;
-        updates.push(`notifications.hook_pre_tool_use = ${n.hook_pre_tool_use}`);
+        updates.push(
+          `notifications.hook_pre_tool_use = ${n.hook_pre_tool_use}`
+        );
       }
       if (typeof n.hook_post_tool_use === "boolean") {
         config.notifications.hookPostToolUse = n.hook_post_tool_use;
-        updates.push(`notifications.hook_post_tool_use = ${n.hook_post_tool_use}`);
+        updates.push(
+          `notifications.hook_post_tool_use = ${n.hook_post_tool_use}`
+        );
       }
       if (typeof n.hook_notification === "boolean") {
         config.notifications.hookNotification = n.hook_notification;
-        updates.push(`notifications.hook_notification = ${n.hook_notification}`);
+        updates.push(
+          `notifications.hook_notification = ${n.hook_notification}`
+        );
       }
       if (typeof n.hook_permission_request === "boolean") {
         config.notifications.hookPermissionRequest = n.hook_permission_request;
@@ -219,8 +236,7 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
         );
       }
       if (typeof n.hook_user_prompt_submit === "boolean") {
-        config.notifications.hookUserPromptSubmit =
-          n.hook_user_prompt_submit;
+        config.notifications.hookUserPromptSubmit = n.hook_user_prompt_submit;
         updates.push(
           `notifications.hook_user_prompt_submit = ${n.hook_user_prompt_submit}`
         );
@@ -231,7 +247,9 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
       }
       if (typeof n.hook_subagent_stop === "boolean") {
         config.notifications.hookSubagentStop = n.hook_subagent_stop;
-        updates.push(`notifications.hook_subagent_stop = ${n.hook_subagent_stop}`);
+        updates.push(
+          `notifications.hook_subagent_stop = ${n.hook_subagent_stop}`
+        );
       }
       if (typeof n.hook_pre_compact === "boolean") {
         config.notifications.hookPreCompact = n.hook_pre_compact;

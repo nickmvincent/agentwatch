@@ -44,9 +44,9 @@ export function loadConversationMetadataStore(): ConversationMetadataStore {
   }
 
   try {
-    const data = JSON.parse(readFileSync(path, "utf-8")) as Partial<
-      ConversationMetadataStore
-    >;
+    const data = JSON.parse(
+      readFileSync(path, "utf-8")
+    ) as Partial<ConversationMetadataStore>;
     return {
       metadata: data.metadata ?? {},
       updatedAt: data.updatedAt ?? new Date().toISOString(),

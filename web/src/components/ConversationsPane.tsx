@@ -799,7 +799,8 @@ export function ConversationsPane({
             className="flex items-center gap-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
           >
             <span>
-              Advanced{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ""}
+              Advanced
+              {advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ""}
             </span>
             <svg
               className={`w-3 h-3 transition-transform ${
@@ -1035,16 +1036,16 @@ export function ConversationsPane({
           </summary>
           <div className="mt-2 space-y-2 text-gray-500">
             <p>
-              <strong>Source:</strong> Full = hooks + transcript matched.
-              Linked = matched by path/time. Partial = only hooks or transcript.
+              <strong>Source:</strong> Full = hooks + transcript matched. Linked
+              = matched by path/time. Partial = only hooks or transcript.
             </p>
             <p>
               <strong>Tags:</strong> Auto-tags come from heuristic analysis.
               User tags are your manual labels in the annotation panel.
             </p>
             <p>
-              <strong>Quality:</strong> Scores summarize completion, safety,
-              and tool success from enrichments.
+              <strong>Quality:</strong> Scores summarize completion, safety, and
+              tool success from enrichments.
             </p>
           </div>
         </details>
@@ -2277,7 +2278,10 @@ export function ConversationsPane({
                         onAnnotationSaved={(manual) => {
                           setSelectedEnrichments((prev) =>
                             prev
-                              ? { ...prev, manual_annotation: manual ?? undefined }
+                              ? {
+                                  ...prev,
+                                  manual_annotation: manual ?? undefined
+                                }
                               : prev
                           );
                           loadEnrichments();

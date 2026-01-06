@@ -15,10 +15,7 @@ import {
   type ProjectConfig
 } from "../projects-config";
 
-export function registerProjectRoutes(
-  app: Hono,
-  store?: DataStore
-): void {
+export function registerProjectRoutes(app: Hono, store?: DataStore): void {
   /**
    * GET /api/projects
    */
@@ -55,10 +52,7 @@ export function registerProjectRoutes(
   app.post("/api/projects", async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as ProjectConfig;
     if (!body.id || !body.name || !Array.isArray(body.paths)) {
-      return c.json(
-        { error: "Missing required fields: id, name, paths" },
-        400
-      );
+      return c.json({ error: "Missing required fields: id, name, paths" }, 400);
     }
 
     const projects = loadProjects();
@@ -88,9 +82,7 @@ export function registerProjectRoutes(
 
     const repos = store.snapshotRepos();
     const existing = loadProjects();
-    const existingPaths = new Set(
-      existing.flatMap((project) => project.paths)
-    );
+    const existingPaths = new Set(existing.flatMap((project) => project.paths));
     const existingIds = new Set(existing.map((project) => project.id));
 
     const newProjects: ProjectConfig[] = [];
@@ -98,7 +90,8 @@ export function registerProjectRoutes(
     for (const repo of repos) {
       if (existingPaths.has(repo.path)) continue;
 
-      const name = repo.name || repo.path.split("/").filter(Boolean).pop() || "";
+      const name =
+        repo.name || repo.path.split("/").filter(Boolean).pop() || "";
       if (!name) continue;
 
       let id = name
@@ -140,9 +133,9 @@ export function registerProjectRoutes(
    */
   app.patch("/api/projects/:id", async (c) => {
     const id = c.req.param("id");
-    const body = (await c.req.json().catch(() => ({}))) as Partial<
-      ProjectConfig
-    >;
+    const body = (await c.req
+      .json()
+      .catch(() => ({}))) as Partial<ProjectConfig>;
 
     const success = updateProject(id, body);
     if (!success) {
