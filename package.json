@@ -15,7 +15,7 @@
   "scripts": {
     "build": "bun run build:packages && bun run build:web && bun run build:pages",
     "build:packages": "bun run --filter './packages/*' build",
-    "build:web": "bun run --cwd web build",
+    "build:web": "bun run --cwd web build:watcher && bun run --cwd web build:analyzer",
     "build:pages": "bun run --cwd pages build",
     "dev": "bun run dev:daemon & bun run dev:web",
     "dev:debug": "bun run dev:daemon:debug & bun run dev:web",
