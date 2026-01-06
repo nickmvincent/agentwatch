@@ -41,21 +41,16 @@ const CONCERN_TYPES: {
   { value: "other", label: "Other", color: "bg-gray-600" }
 ];
 
-type ViewMode = "formatted" | "raw" | "json-agentwatch" | "json-source";
-
 export function ChatViewer({
   transcript,
   onClose,
   sessionId
 }: ChatViewerProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("formatted");
   const [showSidechain, setShowSidechain] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(
     new Set()
   );
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
-  const [sourceJson, setSourceJson] = useState<string | null>(null);
-  const [sourceLoading, setSourceLoading] = useState(false);
 
   // Privacy flags state
   const [flags, setFlags] = useState<PrivacyFlag[]>([]);
@@ -84,21 +79,6 @@ export function ChatViewer({
       .then((res) => setFlags(res.flags))
       .catch(console.error);
   }, [effectiveSessionId]);
-
-  // Load source JSON when switching to that view
-  useEffect(() => {
-    if (viewMode === "json-source" && !sourceJson && !sourceLoading) {
-      setSourceLoading(true);
-      fetch(`/api/contrib/local-logs/${encodeURIComponent(transcript.id)}/raw`)
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch");
-          return res.text();
-        })
-        .then((text) => setSourceJson(text))
-        .catch(() => setSourceJson("// Failed to load source file"))
-        .finally(() => setSourceLoading(false));
-    }
-  }, [viewMode, transcript.id, sourceJson, sourceLoading]);
 
   // Create a map of messageId -> flag for quick lookup
   const flagsByMessage = useMemo(() => {
@@ -305,53 +285,6 @@ export function ChatViewer({
               🔀 {showSidechain ? "Hide" : "Show"} Sub-agents ({sidechainCount})
             </button>
           )}
-          {/* View mode selector */}
-          <div className="flex items-center gap-1 bg-gray-700 rounded p-0.5">
-            <button
-              onClick={() => setViewMode("formatted")}
-              className={`px-2 py-1 text-xs rounded ${
-                viewMode === "formatted"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-300 hover:bg-gray-600"
-              }`}
-              title="Formatted chat view"
-            >
-              Chat
-            </button>
-            <button
-              onClick={() => setViewMode("raw")}
-              className={`px-2 py-1 text-xs rounded ${
-                viewMode === "raw"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-300 hover:bg-gray-600"
-              }`}
-              title="Raw text content"
-            >
-              Raw
-            </button>
-            <button
-              onClick={() => setViewMode("json-agentwatch")}
-              className={`px-2 py-1 text-xs rounded ${
-                viewMode === "json-agentwatch"
-                  ? "bg-green-600 text-white"
-                  : "text-gray-300 hover:bg-gray-600"
-              }`}
-              title="Agentwatch parsed JSON"
-            >
-              AW JSON
-            </button>
-            <button
-              onClick={() => setViewMode("json-source")}
-              className={`px-2 py-1 text-xs rounded ${
-                viewMode === "json-source"
-                  ? "bg-purple-600 text-white"
-                  : "text-gray-300 hover:bg-gray-600"
-              }`}
-              title="Original transcript JSONL file"
-            >
-              Source
-            </button>
-          </div>
           {onClose && (
             <button
               onClick={onClose}
@@ -363,62 +296,8 @@ export function ChatViewer({
         </div>
       </div>
 
-      {/* Content area - JSON views or messages */}
-      {viewMode === "json-agentwatch" ? (
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-400">
-              Agentwatch parsed transcript data
-            </span>
-            <button
-              onClick={() =>
-                handleCopyPath(JSON.stringify(transcript, null, 2), "json")
-              }
-              className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
-                copiedPath === "json"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              {copiedPath === "json" ? "✓ Copied" : "📋 Copy JSON"}
-            </button>
-          </div>
-          <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-900 p-3 rounded overflow-auto text-green-400">
-            {JSON.stringify(transcript, null, 2)}
-          </pre>
-        </div>
-      ) : viewMode === "json-source" ? (
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-gray-400">
-              Source transcript file:{" "}
-              <code className="text-purple-400">{transcript.path}</code>
-            </div>
-            <button
-              onClick={() => handleCopyPath(sourceJson || "", "source-json")}
-              className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
-                copiedPath === "source-json"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-              disabled={!sourceJson || sourceLoading}
-            >
-              {copiedPath === "source-json" ? "✓ Copied" : "📋 Copy Source"}
-            </button>
-          </div>
-          {sourceLoading ? (
-            <div className="text-center py-8 text-gray-500">
-              Loading source file...
-            </div>
-          ) : (
-            <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-900 p-3 rounded overflow-auto text-purple-400">
-              {sourceJson}
-            </pre>
-          )}
-        </div>
-      ) : (
-        /* Messages - formatted or raw view */
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      {/* Chat messages - formatted view */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {displayMessages.map((msg, idx) => {
             const styles = getRoleStyles(msg.role, msg.isSidechain);
             const isLong = msg.content.length > 500;
@@ -652,27 +531,19 @@ export function ChatViewer({
                   </div>
                 )}
 
-                {/* Message content */}
+                {/* Message content - formatted markdown */}
                 <div className="text-sm text-gray-200">
-                  {viewMode === "raw" ? (
-                    <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-900/50 p-2 rounded overflow-x-auto">
-                      {isExpanded
-                        ? msg.content
-                        : msg.content.slice(0, 500) + "..."}
-                    </pre>
-                  ) : (
-                    <div
-                      className={`prose prose-invert prose-sm max-w-none ${!isExpanded ? "max-h-32 overflow-hidden" : ""}`}
-                    >
-                      <MarkdownRenderer
-                        content={
-                          isExpanded
-                            ? msg.content
-                            : msg.content.slice(0, 500) + "..."
-                        }
-                      />
-                    </div>
-                  )}
+                  <div
+                    className={`prose prose-invert prose-sm max-w-none ${!isExpanded ? "max-h-32 overflow-hidden" : ""}`}
+                  >
+                    <MarkdownRenderer
+                      content={
+                        isExpanded
+                          ? msg.content
+                          : msg.content.slice(0, 500) + "..."
+                      }
+                    />
+                  </div>
                 </div>
 
                 {/* Tool input section for tool_use messages */}
@@ -710,7 +581,6 @@ export function ChatViewer({
             </div>
           )}
         </div>
-      )}
     </div>
   );
 }

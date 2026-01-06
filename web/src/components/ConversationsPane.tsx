@@ -25,7 +25,7 @@ import { ChatViewer } from "./ChatViewer";
 import { EnrichmentTooltip } from "./ui/InfoTooltip";
 import { WorkflowProgressWidget } from "./WorkflowProgressWidget";
 
-type ViewMode = "data" | "chat" | "json" | "hooks-timeline" | "full-timeline";
+type ViewMode = "overview" | "chat" | "transcript-source" | "aw-log" | "timeline";
 type SortField = "time" | "quality";
 type SortDirection = "asc" | "desc";
 
@@ -152,10 +152,12 @@ export function ConversationsPane({
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
   // View mode state (for detail panel)
-  const [viewMode, setViewMode] = useState<ViewMode>("data");
+  const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [parsedTranscript, setParsedTranscript] =
     useState<ParsedLocalTranscript | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [sourceJson, setSourceJson] = useState<string | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
   const [timeline, setTimeline] = useState<ToolUsage[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
@@ -246,8 +248,9 @@ export function ConversationsPane({
 
   // Reset view mode and loaded data when session changes
   useEffect(() => {
-    setViewMode("data");
+    setViewMode("overview");
     setParsedTranscript(null);
+    setSourceJson(null);
     setTimeline([]);
   }, [selectedSessionId]);
 
@@ -265,9 +268,31 @@ export function ConversationsPane({
     }
   }, [viewMode, selectedSessionId, conversations]);
 
-  // Load timeline when switching to hooks-timeline view
+  // Load source JSON when switching to transcript-source view
   useEffect(() => {
-    if (viewMode === "hooks-timeline" && selectedSessionId) {
+    if (viewMode === "transcript-source" && selectedSessionId && !sourceJson && !sourceLoading) {
+      const conv = conversations.find(
+        (s) =>
+          s.correlation_id === selectedSessionId ||
+          s.hook_session?.session_id === selectedSessionId
+      );
+      if (conv?.transcript?.id) {
+        setSourceLoading(true);
+        fetch(`/api/contrib/local-logs/${encodeURIComponent(conv.transcript.id)}/raw`)
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to fetch");
+            return res.text();
+          })
+          .then((text) => setSourceJson(text))
+          .catch(() => setSourceJson("// Failed to load source file"))
+          .finally(() => setSourceLoading(false));
+      }
+    }
+  }, [viewMode, selectedSessionId, conversations, sourceJson, sourceLoading]);
+
+  // Load timeline when switching to timeline view (for merged view)
+  useEffect(() => {
+    if (viewMode === "timeline" && selectedSessionId) {
       const conv = conversations.find(
         (s) =>
           s.correlation_id === selectedSessionId ||
@@ -276,8 +301,12 @@ export function ConversationsPane({
       if (conv?.hook_session?.session_id) {
         loadTimeline(conv.hook_session.session_id);
       }
+      // Also load transcript for merged timeline
+      if (conv?.transcript?.id && !parsedTranscript) {
+        loadTranscript(conv.transcript.id);
+      }
     }
-  }, [viewMode, selectedSessionId, conversations]);
+  }, [viewMode, selectedSessionId, conversations, parsedTranscript]);
 
   async function loadTranscript(transcriptId: string) {
     if (parsedTranscript?.id === transcriptId) return; // Already loaded
@@ -1349,12 +1378,12 @@ export function ConversationsPane({
                       getProjectName(selectedSession?.session.cwd)}
                   </h3>
                 </div>
-                {/* View mode toggle */}
+                {/* View mode toggle - single consolidated selector */}
                 <div className="flex items-center gap-1 bg-gray-900 rounded p-1">
                   <button
-                    onClick={() => setViewMode("data")}
+                    onClick={() => setViewMode("overview")}
                     className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "data"
+                      viewMode === "overview"
                         ? "bg-blue-600 text-white"
                         : "text-gray-400 hover:text-white hover:bg-gray-700"
                     }`}
@@ -1372,59 +1401,60 @@ export function ConversationsPane({
                     } disabled:opacity-30 disabled:cursor-not-allowed`}
                     title={
                       !selectedSession?.session.transcript
-                        ? "No transcript"
-                        : "View chat"
+                        ? "No transcript file found"
+                        : "Formatted chat view"
                     }
                   >
                     Chat
                   </button>
                   <button
-                    onClick={() => setViewMode("json")}
+                    onClick={() => setViewMode("transcript-source")}
+                    disabled={!selectedSession?.session.transcript}
                     className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "json"
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-gray-700"
-                    }`}
-                  >
-                    JSON
-                  </button>
-                  <button
-                    onClick={() => setViewMode("hooks-timeline")}
-                    disabled={!selectedSession?.session.hook_session}
-                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "hooks-timeline"
-                        ? "bg-blue-600 text-white"
+                      viewMode === "transcript-source"
+                        ? "bg-purple-600 text-white"
                         : "text-gray-400 hover:text-white hover:bg-gray-700"
                     } disabled:opacity-30 disabled:cursor-not-allowed`}
                     title={
-                      !selectedSession?.session.hook_session
-                        ? "No hooks data"
-                        : "View hooks timeline"
+                      !selectedSession?.session.transcript
+                        ? "No transcript file found"
+                        : "Original Claude transcript JSONL file"
                     }
                   >
-                    Hooks Timeline
+                    Transcript Source
                   </button>
                   <button
-                    onClick={() => setViewMode("full-timeline")}
+                    onClick={() => setViewMode("aw-log")}
+                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                      viewMode === "aw-log"
+                        ? "bg-green-600 text-white"
+                        : "text-gray-400 hover:text-white hover:bg-gray-700"
+                    }`}
+                    title="Agentwatch session data (merged from hooks + transcripts)"
+                  >
+                    AW Log
+                  </button>
+                  <button
+                    onClick={() => setViewMode("timeline")}
                     disabled={
                       !selectedSession?.session.hook_session &&
                       !selectedSession?.session.transcript
                     }
                     className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "full-timeline"
+                      viewMode === "timeline"
                         ? "bg-blue-600 text-white"
                         : "text-gray-400 hover:text-white hover:bg-gray-700"
                     } disabled:opacity-30 disabled:cursor-not-allowed`}
-                    title="Merged timeline from all data sources"
+                    title="Merged timeline from hooks and transcript data"
                   >
-                    Full Timeline
+                    Timeline
                   </button>
                 </div>
               </div>
 
               {/* View content */}
               <div className="flex-1 overflow-y-auto">
-                {/* Chat View */}
+                {/* Chat View - formatted conversation */}
                 {viewMode === "chat" && (
                   <div className="h-full">
                     {transcriptLoading ? (
@@ -1441,10 +1471,51 @@ export function ConversationsPane({
                   </div>
                 )}
 
-                {/* JSON View */}
-                {viewMode === "json" && (
+                {/* Transcript Source View - original JSONL file */}
+                {viewMode === "transcript-source" && (
                   <div className="p-4">
-                    <div className="flex justify-end mb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs text-gray-400">
+                        Original Claude transcript file:{" "}
+                        <code className="text-purple-400">
+                          {selectedSession?.session.transcript?.path || "Unknown"}
+                        </code>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (sourceJson) {
+                            navigator.clipboard.writeText(sourceJson);
+                          }
+                        }}
+                        disabled={!sourceJson || sourceLoading}
+                        className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300 disabled:opacity-50"
+                      >
+                        Copy Source
+                      </button>
+                    </div>
+                    {sourceLoading ? (
+                      <div className="text-center py-8 text-gray-500">
+                        Loading source file...
+                      </div>
+                    ) : sourceJson ? (
+                      <pre className="p-4 bg-gray-900 rounded overflow-auto text-xs font-mono text-purple-400 max-h-[calc(100vh-320px)] whitespace-pre-wrap">
+                        {sourceJson}
+                      </pre>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        No source file available
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* AW Log View - Agentwatch session data */}
+                {viewMode === "aw-log" && (
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs text-gray-400">
+                        Agentwatch merged session data (hooks + transcript metadata)
+                      </div>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(
@@ -1456,29 +1527,14 @@ export function ConversationsPane({
                         Copy JSON
                       </button>
                     </div>
-                    <pre className="p-4 bg-gray-900 rounded overflow-auto text-xs font-mono text-gray-300 max-h-[calc(100vh-320px)]">
+                    <pre className="p-4 bg-gray-900 rounded overflow-auto text-xs font-mono text-green-400 max-h-[calc(100vh-320px)]">
                       {JSON.stringify(selectedSession?.session, null, 2)}
                     </pre>
                   </div>
                 )}
 
-                {/* Hooks Timeline View */}
-                {viewMode === "hooks-timeline" && (
-                  <div className="p-4">
-                    {timelineLoading ? (
-                      <div className="text-gray-400">Loading timeline...</div>
-                    ) : timeline.length === 0 ? (
-                      <div className="text-gray-500">
-                        No tool calls recorded in hooks data
-                      </div>
-                    ) : (
-                      <HooksTimelineView timeline={timeline} />
-                    )}
-                  </div>
-                )}
-
-                {/* Full Timeline View */}
-                {viewMode === "full-timeline" && (
+                {/* Timeline View - merged hooks + transcript */}
+                {viewMode === "timeline" && (
                   <div className="p-4">
                     <FullTimelineView
                       hooksTimeline={timeline}
@@ -1500,8 +1556,8 @@ export function ConversationsPane({
                   </div>
                 )}
 
-                {/* Data View (existing detail view) */}
-                {viewMode === "data" && (
+                {/* Overview View (existing detail view) */}
+                {viewMode === "overview" && (
                   <div className="p-6 space-y-6">
                     {/* Overview Section */}
                     <section>
