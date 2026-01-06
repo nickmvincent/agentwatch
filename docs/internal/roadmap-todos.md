@@ -27,16 +27,88 @@
 | Heuristic scoring | ✅ Working | Auto-success detection |
 | Settings persistence | ✅ Working | TOML config at `~/.config/agentwatch/` |
 
-### Architecture Split ✅ (Complete)
+### Architecture Split ✅ (Structure Complete, Features Pending)
 | Package | Status | Purpose |
 |---------|--------|---------|
 | `@agentwatch/shared-api` | ✅ Complete | Dict converters, API utilities, JSDoc documented |
-| `@agentwatch/watcher` | ✅ Complete | Real-time monitoring (agents, repos, hooks, WebSocket) |
-| `@agentwatch/analyzer` | ✅ Complete | Analysis (enrichments, transcripts, analytics, sharing) |
+| `@agentwatch/watcher` | ⚠️ MVP | Real-time monitoring (agents, repos, hooks, WebSocket) - ~27 endpoints |
+| `@agentwatch/analyzer` | ⚠️ MVP | Analysis (enrichments, transcripts, analytics, sharing) - ~20 endpoints |
 | CLI commands | ✅ Complete | `aw watcher start/stop`, `aw analyze` |
 | Web UI split | ✅ Complete | Two apps: watcher (Agents/Repos/Ports), analyzer (Sessions/Analytics) |
 | Package tests | ✅ Complete | 13 watcher tests, 18 analyzer tests |
-| Daemon | ⚠️ Deprecated | Use watcher + analyzer instead |
+| Daemon | ⚠️ Reference | Has ~194 endpoints - source for missing features |
+
+### Feature Gap Analysis (2026-01-06)
+
+**Daemon has ~194 endpoints. Watcher has ~27. Analyzer has ~20. Many features need porting.**
+
+#### Missing from Watcher (Critical)
+
+| Category | Endpoints | Priority |
+|----------|-----------|----------|
+| Agent Control | `/api/agents/:pid/kill`, `/signal`, `/input`, `/output` | High |
+| Claude Settings | `/api/claude/settings`, `/mcp`, `/reference/*` | High |
+| Sandbox | `/api/sandbox/status`, `/presets`, `/levels`, `/commands` | High |
+| Managed Sessions | `/api/managed-sessions/*` (7 endpoints) | High |
+| Command Center | `/api/command-center/*` (4 endpoints) | Medium |
+| Test Gate | `/api/test-gate/*` (3 endpoints) | Medium |
+| Config Editing | `/api/config` (PATCH), `/api/config/raw` | Medium |
+| Rules | `/api/rules/*` (6 endpoints) - from api-enhancements.ts | Medium |
+| Cost Limits | `/api/cost/*` (3 endpoints) - from api-enhancements.ts | Medium |
+| Notifications | `/api/notifications/*` (5 endpoints) - from api-enhancements.ts | Low |
+| Hook Enhancements | `/api/hook-enhancements` (GET, PATCH) | Low |
+| Sessions (legacy) | `/api/sessions/*` (GET, /:id) | Low |
+| Port Details | `/api/ports/:port` (GET) | Low |
+
+#### Missing from Analyzer (Critical)
+
+| Category | Endpoints | Priority |
+|----------|-----------|----------|
+| Enrichment Tags | `/api/enrichments/:id/tags`, `/analyze-transcript`, `/bulk` | High |
+| Privacy Risk | `/api/enrichments/privacy-risk` | High |
+| Transcript Stats | `/api/transcripts/stats` | High |
+| Analytics (rich) | `/api/analytics/dashboard`, `/success-trend`, `/cost-by-type`, `/tool-retries`, `/quality-distribution`, `/loops`, `/combined` | High |
+| Projects | `/api/projects/*` (6 endpoints) | High |
+| Predictions | `/api/predictions/*` (5 endpoints) | Medium |
+| Calibration | `/api/calibration/*` (2 endpoints) | Medium |
+| Annotations (rich) | `/api/annotations/stats`, `/heuristics` | Medium |
+| Agent Metadata | `/api/agent-metadata/*` (7 endpoints) | Medium |
+| Conversation Metadata | `/api/conversation-metadata/*` (4 endpoints) | Medium |
+| Export | `/api/export/sessions`, `/activity` | Medium |
+| Contrib (full) | `/api/contrib/*` (~30 endpoints) | Medium |
+| Share (HuggingFace) | `/api/share/huggingface/*` (8 endpoints) | Medium |
+| Share (Gist) | `/api/share/gist` | Low |
+| Privacy Flags | `/api/privacy-flags/*` (6 endpoints) | Low |
+| Audit | `/api/audit/*` (9 endpoints) - from api-audit.ts | Low |
+
+#### Settings Split Needed
+
+| File | Purpose |
+|------|---------|
+| `~/.config/agentwatch/watcher.toml` | Scanning intervals, hook behavior, agent detection |
+| `~/.config/agentwatch/analyzer.toml` | Transcript search, enrichment settings, sharing prefs |
+
+#### Recommended Implementation Order
+
+1. **Phase 1: Core Watcher Features**
+   - Agent control (kill/signal/input)
+   - Claude settings read/write
+   - Managed sessions (for `aw run` command)
+
+2. **Phase 2: Core Analyzer Features**
+   - Full enrichment API (tags, analyze, privacy-risk)
+   - Rich analytics (all dashboard endpoints)
+   - Projects CRUD
+
+3. **Phase 3: Sharing Pipeline**
+   - Contrib endpoints
+   - HuggingFace upload
+   - Privacy flags
+
+4. **Phase 4: Advanced Features**
+   - Predictions/calibration
+   - Agent/conversation metadata
+   - Audit logging
 
 ### Test Coverage (803 tests total)
 | Package | Tests | Notes |
