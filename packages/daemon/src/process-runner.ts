@@ -27,7 +27,9 @@ export const AGENT_COMMANDS: Record<
     print: ["codex", "--quiet"]
   },
   gemini: {
-    interactive: ["gemini"],
+    // -i flag for interactive mode (continue after prompt)
+    interactive: ["gemini", "-i"],
+    // One-shot mode uses positional argument (no special flag needed)
     print: ["gemini"]
   }
 };
