@@ -31,7 +31,10 @@ import {
   getAllEnrichments,
   getEnrichments,
   getEnrichmentStats,
-  setManualAnnotation as setEnrichmentAnnotation
+  setManualAnnotation as setEnrichmentAnnotation,
+  updateUserTags,
+  bulkGetEnrichments,
+  deleteEnrichments
 } from "./enrichment-store";
 import {
   getAllAnnotations,
@@ -40,6 +43,13 @@ import {
   deleteAnnotation,
   getAnnotationStats
 } from "./annotations";
+import {
+  loadAnalyzerConfig,
+  addProject,
+  updateProject,
+  removeProject,
+  type ProjectConfig
+} from "./config";
 
 export interface AnalyzerAppState {
   startedAt: number;
@@ -211,6 +221,72 @@ export function createAnalyzerApp(state: AnalyzerAppState): Hono {
     }
   });
 
+  app.post("/api/enrichments/:sessionId/tags", async (c) => {
+    const sessionId = c.req.param("sessionId");
+    try {
+      const body = await c.req.json();
+      const tags = body.tags || [];
+
+      const enrichment = updateUserTags({ transcriptId: sessionId }, tags);
+
+      return c.json({
+        success: true,
+        session_id: sessionId,
+        tags: enrichment.autoTags?.userTags || []
+      });
+    } catch (err) {
+      return c.json({ error: "Failed to update tags" }, 500);
+    }
+  });
+
+  app.post("/api/enrichments/bulk", async (c) => {
+    try {
+      const body = await c.req.json();
+      const sessionIds = body.session_ids || [];
+
+      const refs = sessionIds.map((id: string) => ({ transcriptId: id }));
+      const enrichments = bulkGetEnrichments(refs);
+
+      const result: Record<string, unknown> = {};
+      for (const [id, e] of Object.entries(enrichments)) {
+        if (e) {
+          result[id] = {
+            session_id: id,
+            auto_tags: e.autoTags,
+            outcome_signals: e.outcomeSignals,
+            quality_score: e.qualityScore,
+            manual_annotation: e.manualAnnotation,
+            loop_detection: e.loopDetection,
+            diff_snapshot: e.diffSnapshot,
+            updated_at: e.updatedAt
+          };
+        } else {
+          result[id] = null;
+        }
+      }
+
+      return c.json({
+        enrichments: result,
+        found: Object.values(enrichments).filter(Boolean).length,
+        missing: Object.values(enrichments).filter((e) => !e).length
+      });
+    } catch {
+      return c.json({ enrichments: {}, found: 0, missing: 0 });
+    }
+  });
+
+  app.delete("/api/enrichments/:sessionId", (c) => {
+    const sessionId = c.req.param("sessionId");
+
+    const deleted = deleteEnrichments({ transcriptId: sessionId });
+
+    if (!deleted) {
+      return c.json({ error: "Enrichment not found" }, 404);
+    }
+
+    return c.json({ success: true });
+  });
+
   // =========== Transcripts ===========
   app.get("/api/transcripts", async (c) => {
     try {
@@ -341,12 +417,212 @@ export function createAnalyzerApp(state: AnalyzerAppState): Hono {
   });
 
   app.get("/api/analytics/daily", async (c) => {
-    // Daily analytics requires aggregating by date
-    // For now return empty - will implement when needed
-    return c.json({
-      days: [],
-      summary: {}
-    });
+    const days = Number.parseInt(c.req.query("days") ?? "30", 10);
+    try {
+      const index = loadTranscriptIndex();
+      const transcripts = getIndexedTranscripts(index, {});
+      const enrichments = getAllEnrichments();
+
+      // Group by date
+      const byDate = new Map<
+        string,
+        { total: number; success: number; failure: number }
+      >();
+      const cutoff = Date.now() - days * 86400 * 1000;
+
+      for (const t of transcripts) {
+        if (t.modifiedAt < cutoff) continue;
+        const date = new Date(t.modifiedAt).toISOString().slice(0, 10);
+        const stats = byDate.get(date) || { total: 0, success: 0, failure: 0 };
+        stats.total++;
+
+        // Check enrichment quality
+        const enrichment = enrichments[`transcript:${t.id}`];
+        if (enrichment?.qualityScore) {
+          if (enrichment.qualityScore.overall >= 60) stats.success++;
+          else if (enrichment.qualityScore.overall < 40) stats.failure++;
+        }
+
+        byDate.set(date, stats);
+      }
+
+      const dailyData = Array.from(byDate.entries())
+        .map(([date, stats]) => ({
+          date,
+          total: stats.total,
+          success_count: stats.success,
+          failure_count: stats.failure,
+          rate:
+            stats.total > 0
+              ? Math.round((stats.success / stats.total) * 1000) / 10
+              : 0
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      return c.json({
+        days,
+        daily: dailyData,
+        summary: {
+          total_days: dailyData.length,
+          total_sessions: dailyData.reduce((sum, d) => sum + d.total, 0)
+        }
+      });
+    } catch {
+      return c.json({
+        days,
+        daily: [],
+        summary: { total_days: 0, total_sessions: 0 }
+      });
+    }
+  });
+
+  app.get("/api/analytics/quality-distribution", (c) => {
+    try {
+      const enrichments = getAllEnrichments();
+
+      const buckets = [
+        { range: "0-25", min: 0, max: 25, count: 0 },
+        { range: "25-50", min: 25, max: 50, count: 0 },
+        { range: "50-75", min: 50, max: 75, count: 0 },
+        { range: "75-100", min: 75, max: 100, count: 0 }
+      ];
+
+      let total = 0;
+      const scores: number[] = [];
+
+      for (const enrichment of Object.values(enrichments)) {
+        if (!enrichment.qualityScore) continue;
+
+        const score = enrichment.qualityScore.overall;
+        scores.push(score);
+        total++;
+
+        for (const bucket of buckets) {
+          if (score >= bucket.min && score < bucket.max) {
+            bucket.count++;
+            break;
+          }
+          if (score >= 100 && bucket.max === 100) {
+            bucket.count++;
+            break;
+          }
+        }
+      }
+
+      scores.sort((a, b) => a - b);
+      const percentiles = {
+        p25: scores[Math.floor(scores.length * 0.25)] || 0,
+        p50: scores[Math.floor(scores.length * 0.5)] || 0,
+        p75: scores[Math.floor(scores.length * 0.75)] || 0,
+        p90: scores[Math.floor(scores.length * 0.9)] || 0
+      };
+
+      return c.json({
+        total_scored: total,
+        distribution: buckets.map((b) => ({
+          range: b.range,
+          min: b.min,
+          max: b.max,
+          count: b.count,
+          percentage: total > 0 ? Math.round((b.count / total) * 1000) / 10 : 0
+        })),
+        percentiles
+      });
+    } catch {
+      return c.json({ total_scored: 0, distribution: [], percentiles: {} });
+    }
+  });
+
+  app.get("/api/analytics/by-project", async (c) => {
+    try {
+      const config = loadAnalyzerConfig();
+      const index = loadTranscriptIndex();
+      const transcripts = getIndexedTranscripts(index, {});
+      const enrichments = getAllEnrichments();
+
+      // Group transcripts by project
+      const byProject = new Map<
+        string,
+        {
+          name: string;
+          count: number;
+          quality_sum: number;
+          quality_count: number;
+        }
+      >();
+
+      // Initialize projects
+      for (const project of config.projects) {
+        byProject.set(project.id, {
+          name: project.name,
+          count: 0,
+          quality_sum: 0,
+          quality_count: 0
+        });
+      }
+
+      // Unassigned bucket
+      const unassigned = { count: 0, quality_sum: 0, quality_count: 0 };
+
+      for (const t of transcripts) {
+        const enrichment = enrichments[`transcript:${t.id}`];
+        const qualityScore = enrichment?.qualityScore?.overall;
+
+        // Find matching project
+        let matched = false;
+        for (const project of config.projects) {
+          for (const path of project.paths) {
+            if (t.projectDir?.startsWith(path)) {
+              const stats = byProject.get(project.id);
+              if (stats) {
+                stats.count++;
+                if (qualityScore !== undefined) {
+                  stats.quality_sum += qualityScore;
+                  stats.quality_count++;
+                }
+              }
+              matched = true;
+              break;
+            }
+          }
+          if (matched) break;
+        }
+
+        if (!matched) {
+          unassigned.count++;
+          if (qualityScore !== undefined) {
+            unassigned.quality_sum += qualityScore;
+            unassigned.quality_count++;
+          }
+        }
+      }
+
+      const projects = Array.from(byProject.entries()).map(([id, stats]) => ({
+        project_id: id,
+        project_name: stats.name,
+        session_count: stats.count,
+        avg_quality:
+          stats.quality_count > 0
+            ? Math.round(stats.quality_sum / stats.quality_count)
+            : null
+      }));
+
+      return c.json({
+        projects,
+        unassigned: {
+          session_count: unassigned.count,
+          avg_quality:
+            unassigned.quality_count > 0
+              ? Math.round(unassigned.quality_sum / unassigned.quality_count)
+              : null
+        }
+      });
+    } catch {
+      return c.json({
+        projects: [],
+        unassigned: { session_count: 0, avg_quality: null }
+      });
+    }
   });
 
   // =========== Annotations ===========
@@ -408,6 +684,127 @@ export function createAnalyzerApp(state: AnalyzerAppState): Hono {
     } catch {
       return c.json({ error: "Annotation not found" }, 404);
     }
+  });
+
+  // =========== Projects ===========
+  app.get("/api/projects", (c) => {
+    const config = loadAnalyzerConfig();
+    return c.json({
+      projects: config.projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        paths: p.paths,
+        description: p.description
+      }))
+    });
+  });
+
+  app.get("/api/projects/:id", (c) => {
+    const id = c.req.param("id");
+    const config = loadAnalyzerConfig();
+    const project = config.projects.find((p) => p.id === id);
+
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    return c.json({
+      id: project.id,
+      name: project.name,
+      paths: project.paths,
+      description: project.description
+    });
+  });
+
+  app.post("/api/projects", async (c) => {
+    const body = (await c.req.json()) as {
+      id: string;
+      name: string;
+      paths: string[];
+      description?: string;
+    };
+
+    // Validate required fields
+    if (
+      !body.id ||
+      !body.name ||
+      !Array.isArray(body.paths) ||
+      body.paths.length === 0
+    ) {
+      return c.json(
+        { error: "Missing required fields: id, name, paths (non-empty array)" },
+        400
+      );
+    }
+
+    // Check for duplicate ID
+    const config = loadAnalyzerConfig();
+    if (config.projects.some((p) => p.id === body.id)) {
+      return c.json({ error: "Project with this ID already exists" }, 409);
+    }
+
+    const project: ProjectConfig = {
+      id: body.id,
+      name: body.name,
+      paths: body.paths,
+      description: body.description
+    };
+
+    addProject(project);
+
+    return c.json({ success: true, project }, 201);
+  });
+
+  app.patch("/api/projects/:id", async (c) => {
+    const id = c.req.param("id");
+    const body = (await c.req.json()) as Partial<{
+      name: string;
+      paths: string[];
+      description: string;
+    }>;
+
+    const config = loadAnalyzerConfig();
+    const project = config.projects.find((p) => p.id === id);
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    const updates: Partial<ProjectConfig> = {};
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.paths !== undefined) updates.paths = body.paths;
+    if (body.description !== undefined) updates.description = body.description;
+
+    const success = updateProject(id, updates);
+    if (!success) {
+      return c.json({ error: "Failed to update project" }, 500);
+    }
+
+    // Reload to get updated project
+    const updatedConfig = loadAnalyzerConfig();
+    const updatedProject = updatedConfig.projects.find((p) => p.id === id);
+
+    return c.json({
+      success: true,
+      project: updatedProject
+        ? {
+            id: updatedProject.id,
+            name: updatedProject.name,
+            paths: updatedProject.paths,
+            description: updatedProject.description
+          }
+        : null
+    });
+  });
+
+  app.delete("/api/projects/:id", (c) => {
+    const id = c.req.param("id");
+    const success = removeProject(id);
+
+    if (!success) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    return c.json({ success: true });
   });
 
   // =========== Share/Export ===========

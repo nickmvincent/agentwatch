@@ -251,16 +251,19 @@ describe("Analyzer Integration: Analytics", () => {
     const res = await app.request("/api/analytics/daily");
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(Array.isArray(data.days)).toBe(true);
+    expect(Array.isArray(data.daily)).toBe(true);
+    expect(typeof data.days).toBe("number");
+    expect(data.summary).toBeDefined();
   });
 
   it("GET /api/analytics/daily respects days parameter", async () => {
     const res = await app.request("/api/analytics/daily?days=7");
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(Array.isArray(data.days)).toBe(true);
-    // Days array length should be at most 7
-    expect(data.days.length).toBeLessThanOrEqual(7);
+    expect(Array.isArray(data.daily)).toBe(true);
+    expect(data.days).toBe(7);
+    // Days param controls the time window, not necessarily array length
+    expect(data.summary).toBeDefined();
   });
 });
 

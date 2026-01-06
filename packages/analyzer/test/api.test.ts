@@ -136,11 +136,13 @@ describe("Analyzer API", () => {
       expect(data.costs).toBeDefined();
     });
 
-    it("GET /api/analytics/daily returns empty list", async () => {
+    it("GET /api/analytics/daily returns daily structure", async () => {
       const res = await app.request("/api/analytics/daily");
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.days).toEqual([]);
+      expect(Array.isArray(data.daily)).toBe(true);
+      expect(typeof data.days).toBe("number");
+      expect(data.summary).toBeDefined();
     });
   });
 
@@ -204,6 +206,62 @@ describe("Analyzer API", () => {
         body: JSON.stringify({})
       });
       expect(res.status).toBe(501);
+    });
+  });
+
+  describe("Projects API", () => {
+    it("GET /api/projects returns projects list", async () => {
+      const res = await app.request("/api/projects");
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(Array.isArray(data.projects)).toBe(true);
+    });
+
+    it("GET /api/projects/:id returns 404 for unknown", async () => {
+      const res = await app.request("/api/projects/nonexistent-project");
+      expect(res.status).toBe(404);
+    });
+
+    it("POST /api/projects validates required fields", async () => {
+      // Missing id
+      const res1 = await app.request("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Test", paths: ["/test"] })
+      });
+      expect(res1.status).toBe(400);
+
+      // Missing paths
+      const res2 = await app.request("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "test", name: "Test" })
+      });
+      expect(res2.status).toBe(400);
+
+      // Empty paths array
+      const res3 = await app.request("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "test", name: "Test", paths: [] })
+      });
+      expect(res3.status).toBe(400);
+    });
+
+    it("PATCH /api/projects/:id returns 404 for unknown", async () => {
+      const res = await app.request("/api/projects/nonexistent-project", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Updated Name" })
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("DELETE /api/projects/:id returns 404 for unknown", async () => {
+      const res = await app.request("/api/projects/nonexistent-project", {
+        method: "DELETE"
+      });
+      expect(res.status).toBe(404);
     });
   });
 });

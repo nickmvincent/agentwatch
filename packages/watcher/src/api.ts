@@ -11,9 +11,9 @@
  * - Static files for web UI
  */
 
-import { existsSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -114,6 +114,75 @@ export function createWatcherApp(state: WatcherAppState): Hono {
     return c.json(agentToDict(agent));
   });
 
+  // Agent control endpoints
+  app.post("/api/agents/:pid/kill", async (c) => {
+    const pid = Number.parseInt(c.req.param("pid"), 10);
+    const body = (await c.req.json().catch(() => ({}))) as { force?: boolean };
+    const force = body.force ?? false;
+
+    try {
+      process.kill(pid, force ? "SIGKILL" : "SIGTERM");
+      return c.json({ success: true });
+    } catch {
+      return c.json({ error: "Process not found" }, 404);
+    }
+  });
+
+  app.post("/api/agents/:pid/signal", async (c) => {
+    const pid = Number.parseInt(c.req.param("pid"), 10);
+    const body = (await c.req.json().catch(() => ({}))) as { signal?: string };
+    const signal = body.signal;
+
+    const signalMap: Record<string, NodeJS.Signals> = {
+      interrupt: "SIGINT",
+      suspend: "SIGTSTP",
+      continue: "SIGCONT",
+      terminate: "SIGTERM",
+      kill: "SIGKILL"
+    };
+
+    if (!signal || !(signal in signalMap)) {
+      if (signal === "eof") {
+        return c.json(
+          { error: "EOF requires stdin access (use wrapped mode)" },
+          400
+        );
+      }
+      return c.json(
+        {
+          error: `Invalid signal: ${signal}. Valid: interrupt, suspend, continue, terminate, kill`
+        },
+        400
+      );
+    }
+
+    try {
+      process.kill(pid, signalMap[signal]);
+      return c.json({ success: true });
+    } catch {
+      return c.json({ error: "Process not found" }, 404);
+    }
+  });
+
+  app.post("/api/agents/:pid/input", async (c) => {
+    const pid = Number.parseInt(c.req.param("pid"), 10);
+    const agents = state.store.snapshotAgents();
+    const agent = agents.find((a) => a.pid === pid);
+
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    return c.json(
+      {
+        success: false,
+        error:
+          "Input not supported for scanned processes. Use wrapped mode (aw run) for stdin access."
+      },
+      501
+    );
+  });
+
   // =========== Config ===========
   app.get("/api/config", (c) => {
     const cfg = state.config;
@@ -131,6 +200,194 @@ export function createWatcherApp(state: WatcherAppState): Hono {
         log_dir: cfg.watcher.logDir
       }
     });
+  });
+
+  // =========== Claude Settings ===========
+  const CLAUDE_SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
+
+  app.get("/api/claude/settings", (c) => {
+    if (!existsSync(CLAUDE_SETTINGS_PATH)) {
+      return c.json({
+        exists: false,
+        path: CLAUDE_SETTINGS_PATH,
+        settings: null,
+        raw: null,
+        error: null
+      });
+    }
+
+    try {
+      const content = readFileSync(CLAUDE_SETTINGS_PATH, "utf-8");
+      const settings = JSON.parse(content) as Record<string, unknown>;
+      return c.json({
+        exists: true,
+        path: CLAUDE_SETTINGS_PATH,
+        settings,
+        raw: content,
+        error: null
+      });
+    } catch (e) {
+      try {
+        const content = readFileSync(CLAUDE_SETTINGS_PATH, "utf-8");
+        return c.json({
+          exists: true,
+          path: CLAUDE_SETTINGS_PATH,
+          settings: null,
+          raw: content,
+          error:
+            e instanceof Error ? e.message : "Failed to parse settings.json"
+        });
+      } catch {
+        return c.json(
+          {
+            exists: true,
+            path: CLAUDE_SETTINGS_PATH,
+            settings: null,
+            raw: null,
+            error: "Failed to read settings.json"
+          },
+          400
+        );
+      }
+    }
+  });
+
+  app.put("/api/claude/settings", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      raw?: string;
+      settings?: Record<string, unknown>;
+    };
+
+    try {
+      let settingsToWrite: Record<string, unknown>;
+
+      if (body.raw !== undefined) {
+        try {
+          settingsToWrite = JSON.parse(body.raw);
+        } catch (e) {
+          return c.json(
+            {
+              success: false,
+              error:
+                "Invalid JSON: " +
+                (e instanceof Error ? e.message : "Parse error")
+            },
+            400
+          );
+        }
+      } else if (body.settings !== undefined) {
+        settingsToWrite = body.settings;
+      } else {
+        return c.json(
+          {
+            success: false,
+            error: "Either 'raw' or 'settings' must be provided"
+          },
+          400
+        );
+      }
+
+      const claudeDir = dirname(CLAUDE_SETTINGS_PATH);
+      if (!existsSync(claudeDir)) {
+        mkdirSync(claudeDir, { recursive: true });
+      }
+
+      writeFileSync(
+        CLAUDE_SETTINGS_PATH,
+        JSON.stringify(settingsToWrite, null, 2) + "\n"
+      );
+
+      return c.json({
+        success: true,
+        path: CLAUDE_SETTINGS_PATH,
+        settings: settingsToWrite
+      });
+    } catch (e) {
+      return c.json(
+        {
+          success: false,
+          error: e instanceof Error ? e.message : "Failed to write settings"
+        },
+        500
+      );
+    }
+  });
+
+  app.patch("/api/claude/settings", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+
+    try {
+      let settings: Record<string, unknown> = {};
+      if (existsSync(CLAUDE_SETTINGS_PATH)) {
+        try {
+          settings = JSON.parse(readFileSync(CLAUDE_SETTINGS_PATH, "utf-8"));
+        } catch {
+          return c.json(
+            {
+              success: false,
+              error:
+                "Existing settings.json is invalid JSON. Use PUT to replace entirely."
+            },
+            400
+          );
+        }
+      }
+
+      // Deep merge for specific known keys
+      if (body.hooks !== undefined) {
+        const existingHooks = (settings.hooks ?? {}) as Record<string, unknown>;
+        const newHooks = body.hooks as Record<string, unknown>;
+        settings.hooks = { ...existingHooks, ...newHooks };
+      }
+
+      if (body.permissions !== undefined) {
+        const existingPerms = (settings.permissions ?? {}) as Record<
+          string,
+          unknown
+        >;
+        const newPerms = body.permissions as Record<string, unknown>;
+        settings.permissions = { ...existingPerms, ...newPerms };
+      }
+
+      if (body.env !== undefined) {
+        const existingEnv = (settings.env ?? {}) as Record<string, unknown>;
+        const newEnv = body.env as Record<string, unknown>;
+        settings.env = { ...existingEnv, ...newEnv };
+      }
+
+      for (const key of Object.keys(body)) {
+        if (!["hooks", "permissions", "env"].includes(key)) {
+          settings[key] = body[key];
+        }
+      }
+
+      const claudeDir = dirname(CLAUDE_SETTINGS_PATH);
+      if (!existsSync(claudeDir)) {
+        mkdirSync(claudeDir, { recursive: true });
+      }
+
+      writeFileSync(
+        CLAUDE_SETTINGS_PATH,
+        JSON.stringify(settings, null, 2) + "\n"
+      );
+
+      return c.json({
+        success: true,
+        path: CLAUDE_SETTINGS_PATH,
+        settings
+      });
+    } catch (e) {
+      return c.json(
+        {
+          success: false,
+          error: e instanceof Error ? e.message : "Failed to update settings"
+        },
+        500
+      );
+    }
   });
 
   // =========== Repos ===========
@@ -163,6 +420,18 @@ export function createWatcherApp(state: WatcherAppState): Hono {
   app.get("/api/ports", (c) => {
     const ports = state.store.snapshotPorts();
     return c.json(ports.map(portToDict));
+  });
+
+  app.get("/api/ports/:port", (c) => {
+    const portNum = Number.parseInt(c.req.param("port"), 10);
+    const ports = state.store.snapshotPorts();
+    const port = ports.find((p) => p.port === portNum);
+
+    if (!port) {
+      return c.json({ error: "Port not found" }, 404);
+    }
+
+    return c.json(portToDict(port));
   });
 
   // =========== Hook Sessions ===========
