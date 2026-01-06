@@ -1,0 +1,27 @@
+{
+  "name": "@agentwatch/analyzer",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun && tsc",
+    "dev": "bun run --watch ./src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentwatch/core": "workspace:*",
+    "@agentwatch/monitor": "workspace:*",
+    "@agentwatch/shared-api": "workspace:*",
+    "@agentwatch/pre-share": "workspace:*",
+    "@agentwatch/transcript-parser": "workspace:*",
+    "hono": "^4.6.0"
+  }
+}
