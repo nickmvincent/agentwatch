@@ -145,6 +145,39 @@ export function registerMonitoringRoutes(
   });
 
   /**
+   * Proxy hook stats + timeline requests to watcher.
+   * Keeps analyzer UI working without duplicating hook APIs.
+   */
+  app.all("/api/hooks/*", async (c) => {
+    try {
+      const targetBase = new URL(state.watcherUrl);
+      const incoming = new URL(c.req.url);
+      const target = new URL(incoming.pathname + incoming.search, targetBase);
+
+      const headers = new Headers(c.req.header());
+      headers.delete("host");
+
+      const method = c.req.method;
+      const body =
+        method === "GET" || method === "HEAD" ? undefined : await c.req.text();
+
+      const res = await fetch(target.toString(), {
+        method,
+        headers,
+        body
+      });
+
+      const responseBody = await res.arrayBuffer();
+      return new Response(responseBody, {
+        status: res.status,
+        headers: res.headers
+      });
+    } catch {
+      return c.json({ error: "Watcher not available" }, 503);
+    }
+  });
+
+  /**
    * POST /api/shutdown
    *
    * Trigger graceful server shutdown.

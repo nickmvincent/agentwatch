@@ -47,6 +47,8 @@
  * - `GET /api/analytics/daily` - Daily breakdown
  * - `GET /api/analytics/quality-distribution` - Quality score distribution
  * - `GET /api/analytics/by-project` - Per-project analytics
+ * - `GET /api/analytics/combined` - Combined analytics payload
+ * - `GET /api/analytics/export/sqlite` - SQLite export for notebooks
  *
  * ### Projects
  * - `GET /api/projects` - List projects
@@ -58,6 +60,14 @@
  * ### Share
  * - `GET /api/share/status` - Share configuration status
  * - `POST /api/share/export` - Export data
+ * - `POST /api/share/huggingface` - Upload bundle to HuggingFace
+ * - `GET /api/share/huggingface/cli-auth` - HF CLI auth status
+ * - `POST /api/share/huggingface/use-cli-token` - Use CLI token
+ * - `GET /api/share/huggingface/oauth/config` - OAuth config
+ * - `POST /api/share/huggingface/oauth/start` - Start OAuth flow
+ * - `GET /api/share/huggingface/oauth/callback` - OAuth callback
+ * - `POST /api/share/huggingface/validate` - Validate HF token
+ * - `POST /api/share/huggingface/check-repo` - Check dataset access
  *
  * ### Conversations
  * - `GET /api/contrib/correlated` - Correlated sessions + transcripts
@@ -65,6 +75,24 @@
  * - `GET /api/conversation-metadata/:id` - Get conversation metadata
  * - `PATCH /api/conversation-metadata/:id` - Update conversation metadata
  * - `DELETE /api/conversation-metadata/:id` - Delete conversation metadata
+ *
+ * ### Contribution Prep (legacy daemon compatibility)
+ * - `GET /api/contrib/fields` - Field schema list
+ * - `POST /api/contrib/prepare` - Redaction preview pipeline
+ * - `GET /api/contrib/transcripts` - Hook sessions list
+ * - `GET /api/contrib/local-logs` - Local transcript list
+ * - `GET /api/contrib/local-logs/:id` - Local transcript detail
+ * - `GET /api/contrib/local-logs/:id/raw` - Raw transcript file
+ * - `POST /api/contrib/export/bundle` - JSONL export bundle
+ * - `GET /api/contrib/settings` - Contributor settings
+ * - `POST /api/contrib/settings` - Update contributor settings
+ * - `GET /api/contrib/profiles` - Redaction profiles
+ * - `POST /api/contrib/profiles` - Create redaction profile
+ * - `DELETE /api/contrib/profiles/:id` - Delete redaction profile
+ * - `PUT /api/contrib/profiles/active` - Set active profile
+ * - `GET /api/contrib/history` - Contribution history
+ * - `POST /api/contrib/history` - Record contribution
+ * - `GET /api/contrib/destinations` - Share destinations
  *
  * @module api
  */
@@ -86,6 +114,7 @@ import {
   registerAnalyticsRoutes,
   registerProjectRoutes,
   registerShareRoutes,
+  registerContribRoutes,
   registerConversationRoutes,
   registerDocsRoutes
 } from "./routes";
@@ -169,6 +198,9 @@ export function createAnalyzerApp(state: AnalyzerAppState): Hono {
 
   // Conversations (correlated sessions + transcripts)
   registerConversationRoutes(app);
+
+  // Contribution prep + local logs (legacy daemon API)
+  registerContribRoutes(app);
 
   // Documentation
   registerDocsRoutes(app);

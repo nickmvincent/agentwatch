@@ -391,6 +391,8 @@ export function AnalyticsPane({
   const lastLoadedAt = useRef(0);
   const [transcriptDays, setTranscriptDays] = useState<number>(30);
   const [loadErrors, setLoadErrors] = useState<LoadError[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Report loading state to global context
   useEffect(() => {
@@ -679,6 +681,51 @@ export function AnalyticsPane({
     .filter((t) => t.failure_count > 0)
     .sort((a, b) => b.failure_count - a.failure_count);
   const mostFailedTool = failingTools[0];
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadCombined = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch(`/api/analytics/combined?days=${transcriptDays}`);
+      if (!res.ok) {
+        throw new Error("Failed to export analytics");
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, `agentwatch-analytics-${transcriptDays}d.json`);
+    } catch (error) {
+      setExportError(getErrorMessage(error));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadSqlite = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch(
+        `/api/analytics/export/sqlite?days=${transcriptDays}`
+      );
+      if (!res.ok) {
+        throw new Error("Failed to export SQLite");
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, `agentwatch-conversations-${transcriptDays}d.sqlite`);
+    } catch (error) {
+      setExportError(getErrorMessage(error));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -2346,6 +2393,43 @@ export function AnalyticsPane({
             project_analytics: projectAnalytics
           }}
         />
+      </QuestionSection>
+
+      <QuestionSection
+        question="Export analysis data"
+        description="Download a lightweight dataset for notebooks or SQL exploration."
+        defaultExpanded={false}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-400">
+            Use JSON for notebooks (pandas, Polars) or SQLite for quick SQL
+            queries.
+          </p>
+          {exportError && (
+            <div className="text-xs text-red-300 bg-red-900/30 border border-red-700 rounded p-2">
+              {exportError}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleDownloadCombined}
+              disabled={exporting}
+              className="px-3 py-2 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50"
+            >
+              Download analytics JSON
+            </button>
+            <button
+              onClick={handleDownloadSqlite}
+              disabled={exporting}
+              className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+            >
+              Download conversations SQLite
+            </button>
+          </div>
+          <div className="text-xs text-gray-500">
+            Files include the current {transcriptDays}-day window.
+          </div>
+        </div>
       </QuestionSection>
     </div>
   );

@@ -68,6 +68,12 @@ export function ContribPane({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
+  // Session list filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<
+    "newest" | "oldest" | "score_desc" | "score_asc" | "size_desc" | "size_asc"
+  >("newest");
   // Redaction config
   const [redactionConfig, setRedactionConfig] = useState<RedactionConfig>({
     redactSecrets: true,
@@ -250,9 +256,6 @@ export function ContribPane({
     });
   };
 
-  const selectAll = () => setSelectedIds(new Set(sessions.map((s) => s.id)));
-  const selectNone = () => setSelectedIds(new Set());
-
   const handleBuildBundle = async () => {
     if (preparedSessions.length === 0) {
       setError("No sessions selected");
@@ -371,11 +374,65 @@ export function ContribPane({
     }
   };
 
-  // Group sessions by date
+  const availableSources = useMemo(() => {
+    return Array.from(new Set(sessions.map((s) => s.source))).sort();
+  }, [sessions]);
+
+  const filteredSessions = useMemo(() => {
+    let filtered = [...sessions];
+
+    if (sourceFilter !== "all") {
+      filtered = filtered.filter((session) => session.source === sourceFilter);
+    }
+
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      filtered = filtered.filter((session) => {
+        return (
+          session.name.toLowerCase().includes(query) ||
+          session.source.toLowerCase().includes(query) ||
+          session.projectDir?.toLowerCase()?.includes(query) ||
+          session.sourcePathHint?.toLowerCase()?.includes(query)
+        );
+      });
+    }
+
+    switch (sortBy) {
+      case "oldest":
+        filtered.sort((a, b) => a.modifiedAt - b.modifiedAt);
+        break;
+      case "score_desc":
+        filtered.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+        break;
+      case "score_asc":
+        filtered.sort((a, b) => (a.score ?? 1e9) - (b.score ?? 1e9));
+        break;
+      case "size_desc":
+        filtered.sort((a, b) => (b.sizeBytes ?? 0) - (a.sizeBytes ?? 0));
+        break;
+      case "size_asc":
+        filtered.sort(
+          (a, b) => (a.sizeBytes ?? 1e12) - (b.sizeBytes ?? 1e12)
+        );
+        break;
+      case "newest":
+      default:
+        filtered.sort((a, b) => b.modifiedAt - a.modifiedAt);
+        break;
+    }
+
+    return filtered;
+  }, [sessions, searchQuery, sourceFilter, sortBy]);
+
+  // Group sessions by date (after filters)
   const groupedSessions = useMemo(
-    () => groupSessionsByDate(sessions),
-    [sessions]
+    () => groupSessionsByDate(filteredSessions),
+    [filteredSessions]
   );
+
+  const selectAll = () =>
+    setSelectedIds(new Set(filteredSessions.map((s) => s.id)));
+  const selectNone = () => setSelectedIds(new Set());
 
   const canBuild =
     rightsConfirmed && reviewedConfirmed && preparedSessions.length > 0;
@@ -423,23 +480,76 @@ export function ContribPane({
             {/* Session list */}
             {sessions.length > 0 && (
               <>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">
-                    {sessions.length} sessions loaded
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={selectAll}
-                      className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">
+                      {filteredSessions.length} session
+                      {filteredSessions.length === 1 ? "" : "s"} shown
+                      {filteredSessions.length !== sessions.length && (
+                        <span className="text-gray-500">
+                          {" "}
+                          (of {sessions.length})
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={selectAll}
+                        className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={selectNone}
+                        className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Search by name, source, or path..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="px-2 py-1 text-xs bg-gray-900 border border-gray-600 rounded text-white"
+                    />
+                    <select
+                      value={sourceFilter}
+                      onChange={(e) => setSourceFilter(e.target.value)}
+                      className="px-2 py-1 text-xs bg-gray-900 border border-gray-600 rounded text-white"
                     >
-                      Select All
-                    </button>
-                    <button
-                      onClick={selectNone}
-                      className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                      <option value="all">All sources</option>
+                      {availableSources.map((source) => (
+                        <option key={source} value={source}>
+                          {source}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={sortBy}
+                      onChange={(e) =>
+                        setSortBy(
+                          e.target.value as
+                            | "newest"
+                            | "oldest"
+                            | "score_desc"
+                            | "score_asc"
+                            | "size_desc"
+                            | "size_asc"
+                        )
+                      }
+                      className="px-2 py-1 text-xs bg-gray-900 border border-gray-600 rounded text-white"
                     >
-                      Clear
-                    </button>
+                      <option value="newest">Newest first</option>
+                      <option value="oldest">Oldest first</option>
+                      <option value="score_desc">Score high → low</option>
+                      <option value="score_asc">Score low → high</option>
+                      <option value="size_desc">Size large → small</option>
+                      <option value="size_asc">Size small → large</option>
+                    </select>
                   </div>
                 </div>
 

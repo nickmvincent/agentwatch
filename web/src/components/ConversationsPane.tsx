@@ -204,10 +204,6 @@ export function ConversationsPane({
     }
   }, [contextFilter, setContextFilter]);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(25);
-
   // Conversation naming
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [nameValue, setNameValue] = useState("");
@@ -702,32 +698,6 @@ export function ConversationsPane({
     ).length;
   }, [displaySessions]);
 
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    filterMatchType,
-    filterFeedback,
-    filterTaskType,
-    filterQualityRange,
-    filterAgent,
-    filterHasHooks,
-    filterManaged,
-    filterHasQuality,
-    filterWorkflowStatus,
-    filterProject,
-    searchQuery,
-    sortField,
-    sortDirection
-  ]);
-
-  // Paginated sessions
-  const totalPages = Math.ceil(displaySessions.length / pageSize);
-  const paginatedSessions = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return displaySessions.slice(start, start + pageSize);
-  }, [displaySessions, currentPage, pageSize]);
-
   // Find selected session data
   const selectedSession = displaySessions.find(
     (s) =>
@@ -1068,7 +1038,7 @@ export function ConversationsPane({
               </div>
             ) : (
               <div className="space-y-2">
-                {paginatedSessions.map(({ session, enrichmentItem }) => {
+                {displaySessions.map(({ session, enrichmentItem }) => {
                   const sessionId =
                     session.correlation_id ||
                     session.hook_session?.session_id ||
@@ -1085,6 +1055,10 @@ export function ConversationsPane({
                   );
                   const toolCount =
                     session.tool_count || session.hook_session?.tool_count || 0;
+                  const messageCount = session.transcript?.message_count ?? null;
+                  const transcriptSizeKb = session.transcript?.size_bytes
+                    ? Math.round(session.transcript.size_bytes / 1024)
+                    : null;
                   const customName = conversationNames[sessionId]?.customName;
                   // Use managed session prompt as default name (truncated)
                   const managedPrompt = session.managed_session?.prompt;
@@ -1099,6 +1073,17 @@ export function ConversationsPane({
                       ? "prompt"
                       : "project";
                   const isEditingThis = editingNameId === sessionId;
+                  const workflowStatus =
+                    enrichmentItem?.workflow_status &&
+                    enrichmentItem.workflow_status !== "pending"
+                      ? enrichmentItem.workflow_status
+                      : null;
+                  const contextLine =
+                    nameSource === "custom"
+                      ? promptName || session.cwd || projectName
+                      : nameSource === "prompt"
+                        ? session.cwd || projectName
+                        : session.cwd || "";
 
                   return (
                     <div
@@ -1222,11 +1207,34 @@ export function ConversationsPane({
                             </span>
                           </>
                         )}
+                      </div>
+
+                      {contextLine && (
+                        <div className="text-[11px] text-gray-500 truncate mb-2">
+                          {contextLine}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-1 text-[10px] text-gray-400 mb-2">
+                        {messageCount !== null && (
+                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                            {messageCount} msgs
+                          </span>
+                        )}
                         {toolCount > 0 && (
-                          <>
-                            <span className="text-gray-600">•</span>
-                            <span>{toolCount} tools</span>
-                          </>
+                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                            {toolCount} tools
+                          </span>
+                        )}
+                        {transcriptSizeKb !== null && (
+                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                            {transcriptSizeKb}KB
+                          </span>
+                        )}
+                        {session.hook_session?.permission_mode && (
+                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                            {session.hook_session.permission_mode}
+                          </span>
                         )}
                       </div>
 
@@ -1256,6 +1264,11 @@ export function ConversationsPane({
                               className={`px-1.5 py-0.5 rounded text-xs text-white ${getTaskTypeColor(taskType)}`}
                             >
                               {taskType}
+                            </span>
+                          )}
+                          {workflowStatus && (
+                            <span className="px-1.5 py-0.5 rounded text-xs bg-gray-600 text-gray-100">
+                              {workflowStatus}
                             </span>
                           )}
                           {quality !== undefined && (
@@ -1307,7 +1320,6 @@ export function ConversationsPane({
             )}
           </div>
 
-          {/* Pagination footer */}
           <div className="p-3 border-t border-gray-700 text-xs text-gray-400 flex items-center justify-between">
             <span>
               {displaySessions.length} conversations
@@ -1318,29 +1330,7 @@ export function ConversationsPane({
                 </span>
               )}
             </span>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-2 py-0.5 bg-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
-                >
-                  ‹
-                </button>
-                <span className="px-2">
-                  {currentPage}/{totalPages}
-                </span>
-                <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="px-2 py-0.5 bg-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
-                >
-                  ›
-                </button>
-              </div>
-            )}
+            <span className="text-gray-500">Scroll to browse</span>
           </div>
         </div>
 
