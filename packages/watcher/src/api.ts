@@ -8,6 +8,7 @@
  * - `routes/hooks.ts` - Hook session capture and statistics
  * - `routes/monitoring.ts` - Health checks, repos, ports
  * - `routes/config.ts` - Watcher and Claude settings
+ * - `routes/sandbox.ts` - Docker sandbox status and permission presets
  *
  * ## Endpoints Overview
  *
@@ -58,6 +59,13 @@
  * - `PUT /api/claude/settings` - Replace Claude settings
  * - `PATCH /api/claude/settings` - Merge Claude settings
  *
+ * ### Sandbox
+ * - `GET /api/sandbox/status` - Docker/image/script installation status
+ * - `GET /api/sandbox/presets` - List permission presets
+ * - `GET /api/sandbox/presets/:id` - Get specific preset
+ * - `POST /api/sandbox/presets/:id/apply` - Apply preset to Claude settings
+ * - `GET /api/sandbox/current` - Current sandbox configuration
+ *
  * ### WebSocket
  * - `GET /ws` - Real-time updates (agents, repos, ports, sessions)
  *
@@ -92,7 +100,8 @@ import {
   registerHookEventRoutes,
   registerMonitoringRoutes,
   registerConfigRoutes,
-  registerClaudeSettingsRoutes
+  registerClaudeSettingsRoutes,
+  registerSandboxRoutes
 } from "./routes";
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
@@ -189,6 +198,9 @@ export function createWatcherApp(state: WatcherAppState): Hono {
 
   // Claude settings management
   registerClaudeSettingsRoutes(app);
+
+  // Docker sandbox status and permission presets
+  registerSandboxRoutes(app);
 
   // Hook sessions and timeline
   registerHookSessionRoutes(app, state.hookStore);

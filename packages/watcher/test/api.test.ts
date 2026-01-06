@@ -428,4 +428,57 @@ describe("Watcher API", () => {
       expect(data.result).toBe("continue");
     });
   });
+
+  describe("Sandbox API", () => {
+    it("GET /api/sandbox/status returns installation status", async () => {
+      const res = await app.request("/api/sandbox/status");
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      // Should have docker, image, script status
+      expect(data).toHaveProperty("docker");
+      expect(data).toHaveProperty("image");
+      expect(data).toHaveProperty("script");
+      expect(data).toHaveProperty("ready");
+      expect(typeof data.ready).toBe("boolean");
+    });
+
+    it("GET /api/sandbox/presets returns all presets", async () => {
+      const res = await app.request("/api/sandbox/presets");
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.presets).toBeInstanceOf(Array);
+      expect(data.presets.length).toBe(4); // permissive, balanced, restrictive, custom
+      // Check preset structure
+      const preset = data.presets[0];
+      expect(preset).toHaveProperty("id");
+      expect(preset).toHaveProperty("name");
+      expect(preset).toHaveProperty("description");
+      expect(preset).toHaveProperty("riskLevel");
+      expect(preset).toHaveProperty("sandbox");
+      expect(preset).toHaveProperty("permissions");
+    });
+
+    it("GET /api/sandbox/presets/:id returns specific preset", async () => {
+      const res = await app.request("/api/sandbox/presets/balanced");
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.id).toBe("balanced");
+      expect(data.name).toBe("Balanced");
+      expect(data.sandbox.enabled).toBe(true);
+    });
+
+    it("GET /api/sandbox/presets/:id returns 404 for unknown preset", async () => {
+      const res = await app.request("/api/sandbox/presets/nonexistent");
+      expect(res.status).toBe(404);
+    });
+
+    it("GET /api/sandbox/current returns current configuration", async () => {
+      const res = await app.request("/api/sandbox/current");
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      // May or may not have settings depending on test environment
+      expect(data).toHaveProperty("exists");
+      expect(typeof data.exists).toBe("boolean");
+    });
+  });
 });

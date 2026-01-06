@@ -8,6 +8,7 @@
  * - `hooks` - Hook session capture and statistics
  * - `monitoring` - Health, repos, and ports
  * - `config` - Watcher and Claude settings
+ * - `sandbox` - Docker sandbox status and permission presets
  *
  * @example
  * ```typescript
@@ -18,12 +19,14 @@
  *   registerHookEventRoutes,
  *   registerMonitoringRoutes,
  *   registerConfigRoutes,
- *   registerClaudeSettingsRoutes
+ *   registerClaudeSettingsRoutes,
+ *   registerSandboxRoutes
  * } from "./routes";
  *
  * const app = new Hono();
  * registerAgentRoutes(app, store);
  * registerMonitoringRoutes(app, { store, startedAt, shutdown });
+ * registerSandboxRoutes(app);
  * // ...
  * ```
  *
@@ -41,3 +44,4 @@ export {
   type MonitoringRouteOptions
 } from "./monitoring";
 export { registerConfigRoutes, registerClaudeSettingsRoutes } from "./config";
+export { registerSandboxRoutes } from "./sandbox";

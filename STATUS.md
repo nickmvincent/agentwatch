@@ -44,3 +44,9 @@ On-demand browser-based analysis:
 
 ### Legacy Daemon
 The combined `@agentwatch/daemon` package is deprecated. Use watcher + analyzer instead.
+
+## Test Coverage Updates (In Progress)
+- Added Playwright analyzer UI flow coverage (sessions → preview → annotate → share/export) with API mocks because analyzer server endpoints don't yet match web UI expectations.
+- Added Playwright config support for `TEST_TARGET=analyzer` (serves analyzer UI from `@agentwatch/analyzer`).
+- Added watcher integration test that runs real scanners (process/repo/port) and asserts WebSocket broadcasts.
+- Added CLI integration tests for hooks install/status/uninstall, watcher foreground start/stop, and analyzer headless start/stop using isolated HOME.

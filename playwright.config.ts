@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const isWebDashboard = process.env.TEST_TARGET === "web";
+const testTarget = process.env.TEST_TARGET;
+const isWebDashboard = testTarget === "web";
+const isAnalyzer = testTarget === "analyzer";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -40,19 +42,34 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         baseURL: "http://localhost:8420"
       }
+    },
+    {
+      name: "analyzer",
+      testMatch: /analyzer.*\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://localhost:8421"
+      }
     }
   ],
-  webServer: isWebDashboard
+  webServer: isAnalyzer
     ? {
-        command: "bun run dev:daemon",
-        port: 8420,
+        command: "bun packages/cli/src/bin.ts analyze --headless --port 8421",
+        port: 8421,
         reuseExistingServer: true,
         timeout: 30000
       }
-    : {
-        command: "cd pages && bun run preview",
-        port: 4321,
-        reuseExistingServer: !process.env.CI,
-        timeout: 120000
-      }
+    : isWebDashboard
+      ? {
+          command: "bun run dev:daemon",
+          port: 8420,
+          reuseExistingServer: true,
+          timeout: 30000
+        }
+      : {
+          command: "cd pages && bun run preview",
+          port: 4321,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120000
+        }
 });
