@@ -1,20 +1,24 @@
 /**
  * Watcher App - Streamlined real-time monitoring dashboard.
  *
- * Tabs: Agents | Repos | Ports | Timeline | Command
+ * Tabs: Agents | Repos | Ports | Command | Settings
  */
 
 import { useEffect, useState } from "react";
 import { AgentPane } from "../../components/AgentPane";
 import { CommandCenterPane } from "../../components/CommandCenterPane";
 import { PortsPane } from "../../components/PortsPane";
+import { ProjectsPane } from "../../components/ProjectsPane";
+import { WatcherSettingsPane } from "../../components/WatcherSettingsPane";
+import { fetchProjects } from "../../api/client";
+import type { AgentProcess, Project, RepoStatus } from "../../api/types";
 import { ConversationProvider } from "../../context/ConversationContext";
 import { DataProvider } from "../../context/DataProvider";
 import { LoadingProvider } from "../../context/LoadingContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { WatcherHeader } from "./WatcherHeader";
 
-type Tab = "agents" | "repos" | "ports" | "timeline" | "command";
+type Tab = "agents" | "repos" | "ports" | "command" | "settings";
 type HideableTab = "hooks" | "repos" | "ports";
 
 function WatcherApp() {
@@ -59,10 +63,10 @@ function WatcherApp() {
           setActiveTab("ports");
           break;
         case "4":
-          setActiveTab("timeline");
+          setActiveTab("command");
           break;
         case "5":
-          setActiveTab("command");
+          setActiveTab("settings");
           break;
         case "r":
           refresh();
@@ -82,8 +86,8 @@ function WatcherApp() {
     { id: "agents", label: "Agents", count: agents.length },
     { id: "repos", label: "Repos", count: repos.length },
     { id: "ports", label: "Ports", count: ports.length },
-    { id: "timeline", label: "Timeline", count: activityEvents.length },
-    { id: "command", label: "Command", count: managedSessions.length }
+    { id: "command", label: "Command", count: managedSessions.length },
+    { id: "settings", label: "Settings" }
   ];
 
   return (
@@ -131,7 +135,9 @@ function WatcherApp() {
             sessionTokens={sessionTokens}
           />
         )}
-        {activeTab === "repos" && <ReposPane repos={repos} />}
+        {activeTab === "repos" && (
+          <WatcherReposPane repos={repos} agents={agents} />
+        )}
         {activeTab === "ports" && (
           <PortsPane
             ports={ports}
@@ -149,83 +155,85 @@ function WatcherApp() {
             }}
           />
         )}
-        {activeTab === "timeline" && <TimelinePane events={activityEvents} />}
         {activeTab === "command" && (
           <CommandCenterPane managedSessions={managedSessions} />
         )}
+        {activeTab === "settings" && <WatcherSettingsPane />}
       </main>
     </div>
   );
 }
 
-// Simple repos pane for watcher
-function ReposPane({ repos }: { repos: any[] }) {
-  if (repos.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-500">
-        No repositories with changes detected
-      </div>
-    );
-  }
+// Projects + repos pane for watcher
+function WatcherReposPane({
+  repos,
+  agents
+}: {
+  repos: RepoStatus[];
+  agents: AgentProcess[];
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    fetchProjects()
+      .then((data) => setProjects(data))
+      .catch(() => setProjects([]));
+  }, []);
+
+  const normalizeProjectPath = (path: string) => {
+    const trimmed = path.replace(/\/$/, "");
+    if (trimmed.startsWith("~")) {
+      return trimmed.slice(1);
+    }
+    return trimmed;
+  };
+
+  const projectPaths = new Set(
+    projects.flatMap((project) => project.paths.map(normalizeProjectPath))
+  );
+
+  const agentRepoPaths = new Set(
+    agents
+      .map((agent) => agent.repo_path || agent.cwd || "")
+      .filter(Boolean)
+      .map((path) => path.replace(/\/$/, ""))
+  );
+
+  const isRepoRelevant = (repo: RepoStatus) => {
+    if (agentRepoPaths.has(repo.path)) return true;
+    for (const projectPath of projectPaths) {
+      if (!projectPath) continue;
+      if (
+        repo.path === projectPath ||
+        repo.path.endsWith(projectPath) ||
+        repo.path.startsWith(projectPath + "/")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const filteredRepos = showAll ? repos : repos.filter(isRepoRelevant);
 
   return (
     <div className="space-y-4">
-      {repos.map((repo) => (
-        <div key={repo.path} className="bg-gray-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-gray-100">{repo.path}</h3>
-              <p className="text-sm text-gray-400">
-                Branch: {repo.branch || "unknown"}
-              </p>
-            </div>
-            <div className="flex space-x-4 text-sm">
-              {repo.staged_count > 0 && (
-                <span className="text-green-400">
-                  +{repo.staged_count} staged
-                </span>
-              )}
-              {repo.unstaged_count > 0 && (
-                <span className="text-yellow-400">
-                  {repo.unstaged_count} modified
-                </span>
-              )}
-              {repo.untracked_count > 0 && (
-                <span className="text-gray-400">
-                  {repo.untracked_count} untracked
-                </span>
-              )}
-            </div>
-          </div>
+      <div className="flex items-center justify-between bg-gray-800 rounded-lg border border-gray-700 px-4 py-3">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Repos & Projects</h2>
+          <p className="text-xs text-gray-400">
+            Showing {showAll ? "all scanned repos" : "active/project repos"}.
+          </p>
         </div>
-      ))}
-    </div>
-  );
-}
-
-// Simple timeline pane for watcher
-function TimelinePane({ events }: { events: any[] }) {
-  if (events.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-500">No recent activity</div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {events.slice(0, 50).map((event, i) => (
-        <div key={i} className="bg-gray-800 rounded px-4 py-2 text-sm">
-          <span className="text-gray-500 mr-3">
-            {new Date(event.timestamp).toLocaleTimeString()}
-          </span>
-          <span className="text-gray-300">{event.type}</span>
-          {event.details && (
-            <span className="text-gray-500 ml-2">
-              {JSON.stringify(event.details)}
-            </span>
-          )}
-        </div>
-      ))}
+        <button
+          onClick={() => setShowAll((prev) => !prev)}
+          className="px-3 py-1.5 text-xs rounded bg-gray-700 text-gray-200 hover:bg-gray-600"
+        >
+          {showAll ? "Show relevant only" : "Show all"}
+        </button>
+      </div>
+      <ProjectsPane repos={filteredRepos} enableAnalytics={false} />
     </div>
   );
 }

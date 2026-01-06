@@ -221,10 +221,39 @@ describe("Watcher API", () => {
           includeUntracked: true,
           showClean: false
         },
+        agents: {
+          refreshSeconds: 2,
+          activeCpuThreshold: 1.0,
+          stalledSeconds: 300,
+          matchers: []
+        },
         watcher: {
           host: "localhost",
           port: 8420,
           logDir: "~/.agentwatch/logs"
+        },
+        testGate: {
+          enabled: false,
+          testCommand: "",
+          passFile: "~/.agentwatch/test-pass",
+          passFileMaxAgeSeconds: 3600
+        },
+        notifications: {
+          enable: false,
+          hookAwaitingInput: true,
+          hookSessionEnd: true,
+          hookToolFailure: true,
+          hookLongRunning: true,
+          hookStop: true,
+          longRunningThresholdSeconds: 300,
+          hookSessionStart: false,
+          hookPreToolUse: false,
+          hookPostToolUse: false,
+          hookNotification: false,
+          hookPermissionRequest: false,
+          hookUserPromptSubmit: false,
+          hookSubagentStop: false,
+          hookPreCompact: false
         },
         hookEnhancements: {
           costControls: {
@@ -233,7 +262,28 @@ describe("Watcher API", () => {
             dailyLimitUsd: 50,
             warningThreshold: 0.8
           },
-          notificationHub: { enabled: false, desktop: true }
+          notificationHub: { enabled: false, desktop: true },
+          rules: {
+            enabled: false,
+            rulesFile: "~/.agentwatch/rules.jsonl",
+            enabledRuleSets: []
+          },
+          tokenTracking: {
+            enabled: true,
+            costWarningThresholdUsd: 5.0
+          },
+          autoContinue: {
+            enabled: false,
+            onFailingTests: false,
+            onLintErrors: false,
+            maxAttempts: 3
+          },
+          stopBlocking: {
+            enabled: false,
+            requireTestsPass: false,
+            requireNoLintErrors: false,
+            maxBlockAttempts: 2
+          }
         }
       },
       startedAt: Date.now()

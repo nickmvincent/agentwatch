@@ -28,7 +28,9 @@ interface WatcherHeaderProps {
   sessionCount: number;
 }
 
-const API_BASE = import.meta.env.DEV ? "http://localhost:8420" : "";
+const API_BASE = import.meta.env.VITE_API_BASE
+  ? import.meta.env.VITE_API_BASE.replace(/\/api$/, "")
+  : "";
 const ANALYZER_URL = "http://localhost:8421";
 
 export function WatcherHeader({
@@ -107,6 +109,11 @@ export function WatcherHeader({
             <span title="Active hook sessions">{sessionCount} sessions</span>
             <span>{agentCount} agents</span>
             <span>{repoCount} repos</span>
+            {!analyzerRunning && (
+              <span className="px-2 py-0.5 rounded text-xs bg-red-900/60 text-red-300">
+                Analyzer offline
+              </span>
+            )}
           </div>
 
           {/* Open Analyzer Button */}

@@ -122,11 +122,52 @@ function findManagedSession(
   return sessions.find((s) => s.pid === agent.pid && s.status === "running");
 }
 
+interface ActivityInfo {
+  timestamp: number | null;
+  source: "hooks" | "managed" | "scan" | "unknown";
+}
+
+function getLastActivityInfo(
+  agent: AgentProcess,
+  hookSession: HookSession | undefined,
+  managedSession: ManagedSession | undefined
+): ActivityInfo {
+  if (hookSession?.last_activity) {
+    return { timestamp: hookSession.last_activity, source: "hooks" };
+  }
+
+  const wrapperTime = agent.wrapper_state?.last_output_time;
+  if (wrapperTime) {
+    return { timestamp: wrapperTime, source: "managed" };
+  }
+
+  const managedTime = managedSession?.ended_at ?? managedSession?.started_at;
+  if (managedTime) {
+    return { timestamp: managedTime, source: "managed" };
+  }
+
+  if (
+    agent.heuristic_state &&
+    typeof agent.heuristic_state.quiet_seconds === "number"
+  ) {
+    return {
+      timestamp: Date.now() - agent.heuristic_state.quiet_seconds * 1000,
+      source: "scan"
+    };
+  }
+
+  if (agent.start_time) {
+    return { timestamp: agent.start_time, source: "scan" };
+  }
+
+  return { timestamp: null, source: "unknown" };
+}
+
 type SortColumn =
   | "agent"
   | "pid"
   | "uptime"
-  | "lastHook"
+  | "lastActivity"
   | "state"
   | "location"
   | "resources"
@@ -286,12 +327,14 @@ export function AgentPane({
           cmp = aTime - bTime;
           break;
         }
-        case "lastHook": {
-          const aSession = findHookSession(a, hookSessions);
-          const bSession = findHookSession(b, hookSessions);
-          const aActivity = aSession?.last_activity || 0;
-          const bActivity = bSession?.last_activity || 0;
-          cmp = aActivity - bActivity;
+        case "lastActivity": {
+          const aHook = findHookSession(a, hookSessions);
+          const bHook = findHookSession(b, hookSessions);
+          const aManaged = findManagedSession(a, managedSessions);
+          const bManaged = findManagedSession(b, managedSessions);
+          const aActivity = getLastActivityInfo(a, aHook, aManaged).timestamp;
+          const bActivity = getLastActivityInfo(b, bHook, bManaged).timestamp;
+          cmp = (aActivity ?? 0) - (bActivity ?? 0);
           break;
         }
         case "state": {
@@ -329,7 +372,7 @@ export function AgentPane({
       return sortDirection === "asc" ? cmp : -cmp;
     });
     return sorted;
-  }, [filteredAgents, sortColumn, sortDirection, hookSessions]);
+  }, [filteredAgents, sortColumn, sortDirection, hookSessions, managedSessions]);
 
   // Group agents by label or project
   const groupedAgents = useMemo(() => {
@@ -454,17 +497,34 @@ export function AgentPane({
             </summary>
             <div className="mt-2 p-3 bg-gray-700/50 rounded space-y-1">
               <p>
-                <strong>Source:</strong> Process scanning (every few seconds)
+                <strong>Source:</strong> Process scanner using{" "}
+                <code className="bg-gray-800 px-1 rounded">ps -axo</code> to
+                enumerate processes (every few seconds)
               </p>
               <p>
-                <strong>State detection:</strong> CPU activity + hook events (if
-                installed)
+                <strong>Detection:</strong> Regex/executable matchers against
+                cmdline + executable path; cwd resolved via{" "}
+                <code className="bg-gray-800 px-1 rounded">lsof</code> (cached)
+              </p>
+              <p>
+                <strong>State detection:</strong> CPU activity heuristic (active
+                threshold + stalled timeout) with hook/wrapper signals when
+                available
               </p>
               <p>
                 <strong>Persistent logs:</strong>{" "}
                 <code className="bg-gray-800 px-1 rounded">
                   ~/.agentwatch/processes/
                 </code>
+                <button
+                  onClick={() =>
+                    navigator.clipboard.writeText("~/.agentwatch/processes/")
+                  }
+                  className="ml-2 text-blue-400 hover:text-blue-300"
+                  type="button"
+                >
+                  Copy path
+                </button>
               </p>
               <p>
                 <strong>Detected agents:</strong> Claude Code, Codex CLI, Gemini
@@ -513,6 +573,7 @@ export function AgentPane({
                             )}
                             metadata={getAgentMetadata(agent)}
                             linkedConversation={getLinkedConversation(agent)}
+                            project={resolveProjectForAgent(agent)}
                             onClick={() => setSelectedPid(agent.pid)}
                           />
                         ))}
@@ -556,8 +617,8 @@ export function AgentPane({
                     onSort={handleSort}
                   />
                   <SortableHeader
-                    column="lastHook"
-                    label="Last Hook"
+                    column="lastActivity"
+                    label="Last Activity"
                     sortColumn={sortColumn}
                     sortDirection={sortDirection}
                     onSort={handleSort}
@@ -594,6 +655,7 @@ export function AgentPane({
                     managedSession={findManagedSession(agent, managedSessions)}
                     metadata={getAgentMetadata(agent)}
                     linkedConversation={getLinkedConversation(agent)}
+                    project={resolveProjectForAgent(agent)}
                     onClick={() => setSelectedPid(agent.pid)}
                   />
                 ))}
@@ -674,6 +736,7 @@ interface AgentRowProps {
   managedSession: ManagedSession | undefined;
   metadata: AgentMetadata | null;
   linkedConversation?: Conversation;
+  project?: Project | null;
   onClick: () => void;
 }
 
@@ -683,6 +746,7 @@ function AgentRow({
   managedSession,
   metadata,
   linkedConversation,
+  project,
   onClick
 }: AgentRowProps) {
   const { state, color } = getState(agent);
@@ -690,6 +754,13 @@ function AgentRow({
 
   // Format cwd to show just project name
   const projectName = agent.cwd?.split("/").pop() || "-";
+  const projectLabel =
+    project?.name || linkedConversation?.project?.name || null;
+  const runtimeLabel = agent.sandboxed
+    ? agent.sandbox_type === "docker"
+      ? "docker"
+      : "sandbox"
+    : "local";
 
   // Calculate uptime
   const uptime = agent.start_time
@@ -699,10 +770,27 @@ function AgentRow({
       )
     : "-";
 
-  // Calculate time since last hook
-  const lastHook = hookSession
-    ? formatTimeSince(hookSession.last_activity)
+  const activityInfo = getLastActivityInfo(
+    agent,
+    hookSession,
+    managedSession
+  );
+  const lastActivity = activityInfo.timestamp
+    ? formatTimeSince(activityInfo.timestamp)
     : "-";
+  const activityTimestampMs = activityInfo.timestamp
+    ? activityInfo.timestamp > 1e12
+      ? activityInfo.timestamp
+      : activityInfo.timestamp * 1000
+    : null;
+  const activitySourceLabel =
+    activityInfo.source === "hooks"
+      ? "hooks"
+      : activityInfo.source === "managed"
+        ? "managed"
+        : activityInfo.source === "scan"
+          ? "scan"
+          : "unknown";
 
   // Display name: custom name if set, otherwise agent label
   const displayName = metadata?.customName || agent.label;
@@ -838,17 +926,18 @@ function AgentRow({
       <td
         className="px-4 py-2 text-gray-400 text-xs"
         title={
-          hookSession
-            ? `Last hook activity: ${new Date(hookSession.last_activity > 1e12 ? hookSession.last_activity : hookSession.last_activity * 1000).toLocaleString()}`
-            : agent.label === "claude"
-              ? "No hooks installed"
-              : "Agent does not use hooks"
+          activityTimestampMs
+            ? `Last ${activitySourceLabel} activity: ${new Date(activityTimestampMs).toLocaleString()}`
+            : "No activity data available"
         }
       >
-        {hookSession ? (
-          lastHook
-        ) : agent.label === "claude" ? (
-          <span className="text-gray-600 italic">no hooks</span>
+        {activityTimestampMs ? (
+          <div className="flex flex-col">
+            <span>{lastActivity}</span>
+            <span className="text-[10px] text-gray-600">
+              {activitySourceLabel}
+            </span>
+          </div>
         ) : (
           <span className="text-gray-600">-</span>
         )}
@@ -858,18 +947,19 @@ function AgentRow({
       </td>
       <td
         className="px-4 py-2 text-xs truncate max-w-48"
-        title={agent.cwd || ""}
+        title={`${agent.cwd || ""}${projectLabel ? `\nProject: ${projectLabel}` : ""}\nRuntime: ${runtimeLabel}`}
       >
         <div className="flex flex-col">
           <span className="text-gray-300 font-mono">{projectName}</span>
-          {linkedConversation?.project && (
+          {projectLabel && (
             <span
               className="text-cyan-500 text-[10px]"
-              title={`Project: ${linkedConversation.project.name}`}
+              title={`Project: ${projectLabel}`}
             >
-              {linkedConversation.project.name}
+              {projectLabel}
             </span>
           )}
+          <span className="text-gray-500 text-[10px]">{runtimeLabel}</span>
         </div>
       </td>
       <td className="px-4 py-2">

@@ -4,6 +4,7 @@ import {
   deleteProject,
   fetchAnalyticsByProject,
   fetchProjects,
+  fetchProjectsConfigPath,
   inferProjects,
   updateProject
 } from "../api/client";
@@ -17,6 +18,8 @@ interface ProjectsPaneProps {
   repos: RepoStatus[];
   isActive?: boolean;
   activatedAt?: number;
+  enableAnalytics?: boolean;
+  analyticsDays?: number;
 }
 
 interface ProjectWithStats extends Project {
@@ -26,12 +29,15 @@ interface ProjectWithStats extends Project {
 export function ProjectsPane({
   repos,
   isActive = true,
-  activatedAt = 0
+  activatedAt = 0,
+  enableAnalytics = true,
+  analyticsDays = 90
 }: ProjectsPaneProps) {
   const { setLoading: setGlobalLoading } = useLoading();
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [configPath, setConfigPath] = useState<string | null>(null);
   const lastLoadedAt = useRef<number>(0);
 
   // Report loading state to global context
@@ -132,15 +138,22 @@ export function ProjectsPane({
     setLoading(true);
     setError(null);
     try {
-      const [projectsData, analyticsData] = await Promise.all([
-        fetchProjects(),
-        fetchAnalyticsByProject(90)
-      ]);
+      const projectsData = await fetchProjects();
+      let analyticsData: { breakdown: ProjectAnalyticsItem[] } | null = null;
+      if (enableAnalytics) {
+        try {
+          analyticsData = await fetchAnalyticsByProject(analyticsDays);
+        } catch {
+          analyticsData = null;
+        }
+      }
 
       // Create a map of project stats
       const statsMap = new Map<string, ProjectAnalyticsItem>();
-      for (const item of analyticsData.breakdown) {
-        statsMap.set(item.project_id, item);
+      if (analyticsData?.breakdown) {
+        for (const item of analyticsData.breakdown) {
+          statsMap.set(item.project_id, item);
+        }
       }
 
       // Merge session counts with projects
@@ -159,12 +172,18 @@ export function ProjectsPane({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [analyticsDays, enableAnalytics]);
 
   // Initial load
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  useEffect(() => {
+    fetchProjectsConfigPath()
+      .then((path) => setConfigPath(path))
+      .catch(() => setConfigPath(null));
+  }, []);
 
   // Auto-refresh when tab becomes active and data is stale
   useEffect(() => {
@@ -300,26 +319,35 @@ export function ProjectsPane({
           <p className="text-sm text-gray-400 mt-1">
             Manage projects to organize and filter your sessions.
           </p>
-          <p className="text-xs text-gray-500 mt-1">
-            Stored in{" "}
-            <code className="bg-gray-700 px-1 rounded">
-              ~/.config/agentwatch/config.toml
-            </code>
-          </p>
+          {configPath && (
+            <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+              <span>Stored in</span>
+              <code className="bg-gray-700 px-1 rounded">{configPath}</code>
+              <button
+                onClick={() => navigator.clipboard.writeText(configPath)}
+                className="text-blue-400 hover:text-blue-300"
+                type="button"
+              >
+                Copy path
+              </button>
+            </p>
+          )}
           <p className="text-[10px] text-gray-600 mt-1">
             Stats from hook session metadata (token tracking not yet
             implemented)
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleDiscover}
-            disabled={inferring}
-            className="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-sm disabled:opacity-50"
-            title="Scan session directories for git repositories and auto-create projects"
-          >
-            {inferring ? "Discovering..." : "Discover from Git"}
-          </button>
+          {repos.length > 0 && (
+            <button
+              onClick={handleDiscover}
+              disabled={inferring}
+              className="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-sm disabled:opacity-50"
+              title="Scan watcher repos and auto-create projects"
+            >
+              {inferring ? "Discovering..." : "Discover from Git"}
+            </button>
+          )}
           <button
             onClick={loadProjects}
             disabled={loading}

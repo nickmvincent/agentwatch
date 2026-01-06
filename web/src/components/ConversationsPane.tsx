@@ -6,8 +6,7 @@ import {
   fetchLocalTranscript,
   fetchProjects,
   fetchSessionEnrichments,
-  setSessionAnnotation,
-  updateSessionTags
+  setSessionAnnotation
 } from "../api/client";
 import type {
   AutoTag,
@@ -22,6 +21,7 @@ import type {
 } from "../api/types";
 import { useConversations } from "../context/ConversationContext";
 import { ChatViewer } from "./ChatViewer";
+import { ConversationAnnotationPanel } from "./ConversationAnnotationPanel";
 import { EnrichmentTooltip } from "./ui/InfoTooltip";
 import { WorkflowProgressWidget } from "./WorkflowProgressWidget";
 
@@ -208,12 +208,6 @@ export function ConversationsPane({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(25);
 
-  // Annotation editing
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notesValue, setNotesValue] = useState("");
-  const [editingTags, setEditingTags] = useState(false);
-  const [tagsValue, setTagsValue] = useState("");
-
   // Conversation naming
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [nameValue, setNameValue] = useState("");
@@ -384,8 +378,6 @@ export function ConversationsPane({
       const enrichmentId = getEnrichmentId(sessionId);
       const enrichments = await fetchSessionEnrichments(enrichmentId);
       setSelectedEnrichments(enrichments);
-      setNotesValue(enrichments.manual_annotation?.notes || "");
-      setTagsValue(enrichments.manual_annotation?.userTags?.join(", ") || "");
     } catch {
       setSelectedEnrichments(null);
     } finally {
@@ -408,38 +400,6 @@ export function ConversationsPane({
       }
     } catch (e) {
       console.error("Failed to set feedback:", e);
-    }
-  }
-
-  async function handleSaveNotes() {
-    if (!selectedSessionId || !selectedEnrichments) return;
-    try {
-      // Note: We need to keep existing feedback when saving notes
-      const currentFeedback = selectedEnrichments.manual_annotation?.feedback;
-      const enrichmentId = getEnrichmentId(selectedSessionId);
-      if (currentFeedback) {
-        await setSessionAnnotation(enrichmentId, currentFeedback);
-      }
-      await loadSessionDetail(selectedSessionId);
-      setEditingNotes(false);
-    } catch (e) {
-      console.error("Failed to save notes:", e);
-    }
-  }
-
-  async function handleSaveTags() {
-    if (!selectedSessionId) return;
-    const tags = tagsValue
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    try {
-      const enrichmentId = getEnrichmentId(selectedSessionId);
-      await updateSessionTags(enrichmentId, tags);
-      await loadSessionDetail(selectedSessionId);
-      setEditingTags(false);
-    } catch (e) {
-      console.error("Failed to save tags:", e);
     }
   }
 
@@ -805,11 +765,289 @@ export function ConversationsPane({
             <code className="bg-gray-700/50 px-1 rounded">
               ~/.agentwatch/hooks/
             </code>
+            <button
+              onClick={() =>
+                navigator.clipboard.writeText("~/.agentwatch/hooks/")
+              }
+              className="ml-1 text-[10px] text-blue-400 hover:text-blue-300"
+              type="button"
+            >
+              Copy path
+            </button>
           </span>
           <span title="Claude Code transcripts">
             <code className="bg-gray-700/50 px-1 rounded">~/.claude/</code>
           </span>
         </div>
+      </div>
+
+      {/* Search + filters */}
+      <div className="bg-gray-800 rounded-lg border border-gray-700 p-4 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search conversations by project, agent, tags, or prompt..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white placeholder-gray-400"
+          />
+          <button
+            type="button"
+            onClick={() => setShowAdvancedFilters((open) => !open)}
+            aria-expanded={showAdvancedFilters}
+            aria-controls="conversations-advanced-filters"
+            className="flex items-center gap-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
+          >
+            <span>
+              Advanced{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ""}
+            </span>
+            <svg
+              className={`w-3 h-3 transition-transform ${
+                showAdvancedFilters ? "rotate-180" : ""
+              }`}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <select
+            value={filterMatchType}
+            onChange={(e) => setFilterMatchType(e.target.value)}
+            className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+            title="Data completeness: Full = hooks + transcript matched. Linked = matched by path/time. Partial = only one source."
+          >
+            <option value="all">All sources</option>
+            <option value="exact">Full (hooks + transcript)</option>
+            <option value="confident">Linked</option>
+            <option value="uncertain">Linked (uncertain)</option>
+            <option value="unmatched">Partial</option>
+          </select>
+          <select
+            value={filterFeedback}
+            onChange={(e) => setFilterFeedback(e.target.value)}
+            className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+            title="Your manual rating of sessions (thumbs up/down)"
+          >
+            <option value="all">Feedback</option>
+            <option value="positive">Positive</option>
+            <option value="negative">Negative</option>
+            <option value="unlabeled">Unlabeled</option>
+          </select>
+          <select
+            value={filterProject}
+            onChange={(e) => setFilterProject(e.target.value)}
+            className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+            title="Filter by project"
+          >
+            <option value="all">All Projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value as SortField)}
+              className="flex-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white"
+            >
+              <option value="time">Sort by time</option>
+              <option value="quality">Sort by quality</option>
+            </select>
+            <button
+              onClick={() =>
+                setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+              }
+              className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
+            >
+              {sortDirection === "desc" ? "Newest" : "Oldest"}
+            </button>
+          </div>
+        </div>
+
+        {showAdvancedFilters && (
+          <div id="conversations-advanced-filters" className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <select
+                value={filterAgent}
+                onChange={(e) => setFilterAgent(e.target.value)}
+                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                title="Filter by AI agent type (Claude Code, Codex, etc.)"
+              >
+                <option value="all">All agents</option>
+                {uniqueAgents.map((agent) => (
+                  <option key={agent} value={agent}>
+                    {agent}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filterHasHooks}
+                onChange={(e) => setFilterHasHooks(e.target.value)}
+                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                title="Hooks = agentwatch event tracking. Sessions with hooks have tool-level data."
+              >
+                <option value="all">Any hooks</option>
+                <option value="has">Has hooks</option>
+                <option value="none">No hooks</option>
+              </select>
+              <select
+                value={filterManaged}
+                onChange={(e) => setFilterManaged(e.target.value)}
+                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                title="Managed = started via 'aw run' with extra metadata. Unmanaged = normal sessions."
+              >
+                <option value="all">All types</option>
+                <option value="managed">Managed</option>
+                <option value="unmanaged">Unmanaged</option>
+              </select>
+              <select
+                value={filterHasQuality}
+                onChange={(e) => setFilterHasQuality(e.target.value)}
+                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                title="Quality scores are computed from session data (tool success, completion, safety)"
+              >
+                <option value="all">Quality score</option>
+                <option value="has">Has score</option>
+                <option value="none">No score</option>
+              </select>
+              <select
+                value={filterWorkflowStatus}
+                onChange={(e) => setFilterWorkflowStatus(e.target.value)}
+                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                title="Contribution workflow status: Pending → Reviewed → Ready to contribute"
+              >
+                <option value="all">Review status</option>
+                <option value="pending">Pending</option>
+                <option value="reviewed">Reviewed</option>
+                <option value="ready_to_contribute">Ready</option>
+                <option value="skipped">Skipped</option>
+              </select>
+              {sessionsWithoutQuality > 0 && (
+                <button
+                  onClick={() => setShowBulkConfirm(true)}
+                  disabled={bulkComputing}
+                  className="col-span-2 md:col-span-1 px-2 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white text-xs rounded"
+                  title={`Compute quality scores for ${sessionsWithoutQuality} sessions`}
+                >
+                  {bulkComputing
+                    ? "Computing..."
+                    : `Compute All (${sessionsWithoutQuality})`}
+                </button>
+              )}
+            </div>
+
+            {/* Bulk Compute Confirmation */}
+            {showBulkConfirm && (
+              <div className="p-3 bg-yellow-900/30 border border-yellow-700 rounded">
+                <div className="text-sm text-yellow-300 mb-2">
+                  Compute quality scores for {sessionsWithoutQuality} sessions?
+                </div>
+                <div className="text-xs text-yellow-400/70 mb-3">
+                  This may take a while for many sessions.
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleBulkComputeQuality}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded"
+                  >
+                    Yes, compute all
+                  </button>
+                  <button
+                    onClick={() => setShowBulkConfirm(false)}
+                    className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Bulk Compute Result */}
+            {bulkComputeResult && (
+              <div className="p-2 bg-green-900/30 border border-green-700 rounded text-xs">
+                <div className="text-green-300">
+                  Computed: {bulkComputeResult.computed}, Skipped:{" "}
+                  {bulkComputeResult.skipped}
+                  {bulkComputeResult.errors > 0 && (
+                    <span className="text-red-400">
+                      , Errors: {bulkComputeResult.errors}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setBulkComputeResult(null)}
+                  className="text-gray-400 hover:text-white mt-1"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            <WorkflowProgressWidget
+              onFilterClick={(status) => {
+                setFilterWorkflowStatus(status);
+              }}
+            />
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2 text-xs">
+          {filterTaskType !== "all" && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-900/30 border border-blue-700 rounded">
+              <span className="text-blue-300">Task: {filterTaskType}</span>
+              <button
+                onClick={() => setFilterTaskType("all")}
+                className="text-blue-400 hover:text-blue-200"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+          {filterQualityRange !== "all" && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-purple-900/30 border border-purple-700 rounded">
+              <span className="text-purple-300">
+                Quality: {filterQualityRange}
+              </span>
+              <button
+                onClick={() => setFilterQualityRange("all")}
+                className="text-purple-400 hover:text-purple-200"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+
+        <details className="text-xs text-gray-400">
+          <summary className="cursor-pointer hover:text-gray-300">
+            What do these filters mean?
+          </summary>
+          <div className="mt-2 space-y-2 text-gray-500">
+            <p>
+              <strong>Source:</strong> Full = hooks + transcript matched.
+              Linked = matched by path/time. Partial = only hooks or transcript.
+            </p>
+            <p>
+              <strong>Tags:</strong> Auto-tags come from heuristic analysis.
+              User tags are your manual labels in the annotation panel.
+            </p>
+            <p>
+              <strong>Quality:</strong> Scores summarize completion, safety,
+              and tool success from enrichments.
+            </p>
+          </div>
+        </details>
       </div>
 
       <div className="flex gap-6 h-[calc(100vh-240px)]">
@@ -819,264 +1057,6 @@ export function ConversationsPane({
             <h2 className="text-lg font-semibold text-white mb-2">
               Conversations
             </h2>
-
-            <div className="space-y-2">
-              {/* Search + Advanced */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Search sessions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white placeholder-gray-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedFilters((open) => !open)}
-                  aria-expanded={showAdvancedFilters}
-                  aria-controls="conversations-advanced-filters"
-                  className="flex items-center gap-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600 shrink-0"
-                >
-                  <span>
-                    Advanced
-                    {advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ""}
-                  </span>
-                  <svg
-                    className={`w-3 h-3 transition-transform ${
-                      showAdvancedFilters ? "rotate-180" : ""
-                    }`}
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Filters */}
-              <div className="flex gap-2 overflow-hidden">
-                <select
-                  value={filterMatchType}
-                  onChange={(e) => setFilterMatchType(e.target.value)}
-                  className="flex-1 min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                  title="Data completeness: Full = hooks + transcript matched. Linked = matched by path/time. Partial = only one source."
-                >
-                  <option value="all">All sources</option>
-                  <option value="exact">Full (hooks + transcript)</option>
-                  <option value="confident">Linked</option>
-                  <option value="uncertain">Linked (uncertain)</option>
-                  <option value="unmatched">Partial</option>
-                </select>
-                <select
-                  value={filterFeedback}
-                  onChange={(e) => setFilterFeedback(e.target.value)}
-                  className="flex-1 min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                  title="Your manual rating of sessions (thumbs up/down)"
-                >
-                  <option value="all">Feedback</option>
-                  <option value="positive">Positive</option>
-                  <option value="negative">Negative</option>
-                  <option value="unlabeled">Unlabeled</option>
-                </select>
-              </div>
-
-              {/* Project filter - main section */}
-              <select
-                value={filterProject}
-                onChange={(e) => setFilterProject(e.target.value)}
-                className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                title="Filter by project"
-              >
-                <option value="all">All Projects</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-
-              {showAdvancedFilters && (
-                <div id="conversations-advanced-filters" className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={filterAgent}
-                      onChange={(e) => setFilterAgent(e.target.value)}
-                      className="min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                      title="Filter by AI agent type (Claude Code, Codex, etc.)"
-                    >
-                      <option value="all">All agents</option>
-                      {uniqueAgents.map((agent) => (
-                        <option key={agent} value={agent}>
-                          {agent}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={filterHasHooks}
-                      onChange={(e) => setFilterHasHooks(e.target.value)}
-                      className="min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                      title="Hooks = agentwatch event tracking. Sessions with hooks have tool-level data."
-                    >
-                      <option value="all">Any hooks</option>
-                      <option value="has">Has hooks</option>
-                      <option value="none">No hooks</option>
-                    </select>
-                    <select
-                      value={filterManaged}
-                      onChange={(e) => setFilterManaged(e.target.value)}
-                      className="min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                      title="Managed = started via 'aw run' with extra metadata. Unmanaged = normal sessions."
-                    >
-                      <option value="all">All types</option>
-                      <option value="managed">Managed</option>
-                      <option value="unmanaged">Unmanaged</option>
-                    </select>
-                    <select
-                      value={filterHasQuality}
-                      onChange={(e) => setFilterHasQuality(e.target.value)}
-                      className="min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                      title="Quality scores are computed from session data (tool success, completion, safety)"
-                    >
-                      <option value="all">Quality score</option>
-                      <option value="has">Has score</option>
-                      <option value="none">No score</option>
-                    </select>
-                    <select
-                      value={filterWorkflowStatus}
-                      onChange={(e) => setFilterWorkflowStatus(e.target.value)}
-                      className="min-w-0 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                      title="Contribution workflow status: Pending → Reviewed → Ready to contribute"
-                    >
-                      <option value="all">Review status</option>
-                      <option value="pending">Pending</option>
-                      <option value="reviewed">Reviewed</option>
-                      <option value="ready_to_contribute">Ready</option>
-                      <option value="skipped">Skipped</option>
-                    </select>
-                    {sessionsWithoutQuality > 0 && (
-                      <button
-                        onClick={() => setShowBulkConfirm(true)}
-                        disabled={bulkComputing}
-                        className="col-span-2 px-2 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white text-xs rounded"
-                        title={`Compute quality scores for ${sessionsWithoutQuality} sessions`}
-                      >
-                        {bulkComputing
-                          ? "Computing..."
-                          : `Compute All (${sessionsWithoutQuality})`}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Bulk Compute Confirmation */}
-                  {showBulkConfirm && (
-                    <div className="p-3 bg-yellow-900/30 border border-yellow-700 rounded">
-                      <div className="text-sm text-yellow-300 mb-2">
-                        Compute quality scores for {sessionsWithoutQuality}{" "}
-                        sessions?
-                      </div>
-                      <div className="text-xs text-yellow-400/70 mb-3">
-                        This may take a while for many sessions.
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleBulkComputeQuality}
-                          className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded"
-                        >
-                          Yes, compute all
-                        </button>
-                        <button
-                          onClick={() => setShowBulkConfirm(false)}
-                          className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bulk Compute Result */}
-                  {bulkComputeResult && (
-                    <div className="p-2 bg-green-900/30 border border-green-700 rounded text-xs">
-                      <div className="text-green-300">
-                        Computed: {bulkComputeResult.computed}, Skipped:{" "}
-                        {bulkComputeResult.skipped}
-                        {bulkComputeResult.errors > 0 && (
-                          <span className="text-red-400">
-                            , Errors: {bulkComputeResult.errors}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => setBulkComputeResult(null)}
-                        className="text-gray-400 hover:text-white mt-1"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Workflow Progress Widget */}
-                  <WorkflowProgressWidget
-                    onFilterClick={(status) => {
-                      setFilterWorkflowStatus(status);
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Task type filter (from analytics) */}
-              {filterTaskType !== "all" && (
-                <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-900/30 border border-blue-700 rounded text-xs">
-                  <span className="text-blue-300">Task: {filterTaskType}</span>
-                  <button
-                    onClick={() => setFilterTaskType("all")}
-                    className="text-blue-400 hover:text-blue-200"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-
-              {/* Quality range filter (from analytics) */}
-              {filterQualityRange !== "all" && (
-                <div className="flex items-center gap-2 px-2 py-1.5 bg-purple-900/30 border border-purple-700 rounded text-xs">
-                  <span className="text-purple-300">
-                    Quality: {filterQualityRange}
-                  </span>
-                  <button
-                    onClick={() => setFilterQualityRange("all")}
-                    className="text-purple-400 hover:text-purple-200"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-
-              {/* Sort */}
-              <div className="flex gap-2">
-                <select
-                  value={sortField}
-                  onChange={(e) => setSortField(e.target.value as SortField)}
-                  className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white"
-                >
-                  <option value="time">Sort by time</option>
-                  <option value="quality">Sort by quality</option>
-                </select>
-                <button
-                  onClick={() =>
-                    setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
-                  }
-                  className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
-                >
-                  {sortDirection === "desc" ? "Newest" : "Oldest"}
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* Session List */}
@@ -2279,134 +2259,30 @@ export function ConversationsPane({
 
                     {/* Manual Annotation Section */}
                     <section className="border-t border-gray-700 pt-6">
-                      <h3 className="text-lg font-semibold text-white mb-3">
-                        Your Annotation
-                      </h3>
-
-                      {/* Feedback buttons */}
-                      <div className="flex gap-3 mb-4">
-                        <button
-                          onClick={() =>
-                            handleFeedbackClick(selectedSessionId, "positive")
-                          }
-                          className={`px-4 py-2 rounded flex items-center gap-2 ${
-                            selectedEnrichments?.manual_annotation?.feedback ===
-                            "positive"
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                          }`}
-                        >
-                          <span>Positive</span>
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleFeedbackClick(selectedSessionId, "negative")
-                          }
-                          className={`px-4 py-2 rounded flex items-center gap-2 ${
-                            selectedEnrichments?.manual_annotation?.feedback ===
-                            "negative"
-                              ? "bg-red-600 text-white"
-                              : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                          }`}
-                        >
-                          <span>Negative</span>
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleFeedbackClick(selectedSessionId, null)
-                          }
-                          className={`px-4 py-2 rounded flex items-center gap-2 ${
-                            selectedEnrichments?.manual_annotation?.feedback ===
-                            null
-                              ? "bg-gray-500 text-white"
-                              : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                          }`}
-                        >
-                          <span>Clear</span>
-                        </button>
-                      </div>
-
-                      {/* User tags */}
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-gray-400 text-sm">Tags:</span>
-                          <button
-                            onClick={() => setEditingTags(!editingTags)}
-                            className="text-xs text-blue-400 hover:text-blue-300"
-                          >
-                            {editingTags ? "Cancel" : "Edit"}
-                          </button>
-                        </div>
-                        {editingTags ? (
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={tagsValue}
-                              onChange={(e) => setTagsValue(e.target.value)}
-                              placeholder="tag1, tag2, tag3"
-                              className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white"
-                            />
-                            <button
-                              onClick={handleSaveTags}
-                              className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500"
-                            >
-                              Save
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {selectedEnrichments?.manual_annotation?.userTags?.map(
-                              (tag: string, i: number) => (
-                                <span
-                                  key={i}
-                                  className="px-2 py-1 bg-blue-600/30 border border-blue-500 rounded text-xs text-blue-300"
-                                >
-                                  {tag}
-                                </span>
-                              )
-                            ) || (
-                              <span className="text-gray-500 text-sm">
-                                No tags
-                              </span>
-                            )}
-                          </div>
+                      <ConversationAnnotationPanel
+                        sessionId={getEnrichmentId(selectedSessionId)}
+                        manualAnnotation={
+                          selectedEnrichments?.manual_annotation ?? null
+                        }
+                        conversationName={
+                          conversationNames[selectedSessionId]?.customName ||
+                          null
+                        }
+                        conversationNamePlaceholder={getProjectName(
+                          selectedSession?.session.cwd
                         )}
-                      </div>
-
-                      {/* Notes */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-gray-400 text-sm">Notes:</span>
-                          <button
-                            onClick={() => setEditingNotes(!editingNotes)}
-                            className="text-xs text-blue-400 hover:text-blue-300"
-                          >
-                            {editingNotes ? "Cancel" : "Edit"}
-                          </button>
-                        </div>
-                        {editingNotes ? (
-                          <div>
-                            <textarea
-                              value={notesValue}
-                              onChange={(e) => setNotesValue(e.target.value)}
-                              placeholder="Add notes about this session..."
-                              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white min-h-[100px]"
-                            />
-                            <button
-                              onClick={handleSaveNotes}
-                              className="mt-2 px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500"
-                            >
-                              Save Notes
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-gray-300 text-sm whitespace-pre-wrap">
-                            {selectedEnrichments?.manual_annotation?.notes || (
-                              <span className="text-gray-500">No notes</span>
-                            )}
-                          </p>
-                        )}
-                      </div>
+                        onConversationNameSave={(name) =>
+                          updateConversationName(selectedSessionId, name)
+                        }
+                        onAnnotationSaved={(manual) => {
+                          setSelectedEnrichments((prev) =>
+                            prev
+                              ? { ...prev, manual_annotation: manual ?? undefined }
+                              : prev
+                          );
+                          loadEnrichments();
+                        }}
+                      />
                     </section>
                   </div>
                 )}
