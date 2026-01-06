@@ -13,6 +13,7 @@
   "dependencies": {
     "@agentwatch/core": "workspace:*",
     "@agentwatch/monitor": "workspace:*",
+    "@agentwatch/shared-api": "workspace:*",
     "@agentwatch/pre-share": "workspace:*",
     "@agentwatch/transcript-parser": "workspace:*",
     "@huggingface/hub": "^0.18.0",

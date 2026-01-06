@@ -7,10 +7,6 @@
     "emitDeclarationOnly": true
   },
   "include": ["src/**/*"],
-  "references": [
-    { "path": "../pre-share" },
-    { "path": "../core" },
-    { "path": "../monitor" },
-    { "path": "../shared-api" }
-  ]
+  "exclude": ["node_modules", "dist", "test"],
+  "references": [{ "path": "../core" }]
 }
