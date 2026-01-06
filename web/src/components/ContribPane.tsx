@@ -387,52 +387,6 @@ export function ContribPane({ onNavigateToTab }: ContribPaneProps) {
         </p>
       </div>
 
-      {/* Data Source Legend - explains session selection badges */}
-      <div className="mb-4 p-3 bg-gray-900/50 rounded border border-gray-700">
-        <div className="text-xs text-gray-400 font-medium mb-2">
-          Session Data Types
-        </div>
-        <div className="text-xs text-gray-500 flex items-center gap-4 flex-wrap">
-          <span
-            className="flex items-center gap-1"
-            title="Session has real-time tool usage captured via Claude Code hooks - SAFE: contains no file contents"
-          >
-            <span className="w-2 h-2 rounded-full bg-green-500"></span>
-            <span>Hooks data</span>
-            <span className="text-green-400 text-[10px]">(safer)</span>
-          </span>
-          <span
-            className="flex items-center gap-1"
-            title="Session has full chat transcript with messages - CONTAINS FILE CONTENTS if Claude read files"
-          >
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            <span>Transcript data</span>
-            <span className="text-amber-400 text-[10px]">(review needed)</span>
-          </span>
-          <span
-            className="flex items-center gap-1"
-            title="Session was started via 'aw run' with additional metadata"
-          >
-            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-            <span>Managed session</span>
-          </span>
-          <span className="text-gray-600 ml-2 italic">
-            Sessions with both badges are matched (hooks + transcript)
-          </span>
-        </div>
-        <div className="text-[10px] text-gray-600 mt-2">
-          Sources: ~/.agentwatch/hooks/, ~/.claude/, ~/.codex/ |{" "}
-          <a
-            href="https://github.com/nickmvincent/agentwatch/blob/main/docs/data-sources.md"
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-400 hover:underline"
-          >
-            Docs
-          </a>
-        </div>
-      </div>
-
       <MyDataSection />
 
       <UnifiedShareFlow onNavigateToTab={onNavigateToTab} />
@@ -1981,7 +1935,7 @@ function UnifiedShareFlow({ onNavigateToTab }: ContribPaneProps) {
         </div>
       )}
 
-      {/* Conversations Summary */}
+      {/* Conversations Summary with Data Types */}
       <div className="p-4 rounded-lg border-2 border-gray-700 bg-gray-900/30">
         <div className="flex items-center justify-between">
           <div>
@@ -2004,9 +1958,8 @@ function UnifiedShareFlow({ onNavigateToTab }: ContribPaneProps) {
           </div>
         ) : (
           conversationStats && (
-            <div className="mt-3 pt-3 border-t border-gray-700/50 text-xs space-y-2">
-              {/* Legend - using consistent colors across app:
-                  Green = Hooks/matched, Blue = Transcripts, Yellow = Hook-only, Gray = Partial */}
+            <div className="mt-3 pt-3 border-t border-gray-700/50 text-xs space-y-3">
+              {/* Stats row */}
               <div className="flex items-center gap-4 flex-wrap">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-white"></span>
@@ -2017,7 +1970,7 @@ function UnifiedShareFlow({ onNavigateToTab }: ContribPaneProps) {
                 </span>
                 <span
                   className="flex items-center gap-1"
-                  title="Sessions with both hook data and transcript matched"
+                  title="Sessions with both hook data and transcript matched - best for analysis"
                 >
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
                   <span className="font-medium text-green-400">
@@ -2027,7 +1980,7 @@ function UnifiedShareFlow({ onNavigateToTab }: ContribPaneProps) {
                 </span>
                 <span
                   className="flex items-center gap-1"
-                  title="Hook data only (no transcript found)"
+                  title="Hook data only (no transcript found) - safer to share, no file contents"
                 >
                   <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
                   <span className="font-medium text-yellow-400">
@@ -2037,7 +1990,7 @@ function UnifiedShareFlow({ onNavigateToTab }: ContribPaneProps) {
                 </span>
                 <span
                   className="flex items-center gap-1"
-                  title="Transcript only (no hook session found)"
+                  title="Transcript only (no hook session) - may contain file contents, review carefully"
                 >
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                   <span className="font-medium text-blue-400">
@@ -2045,6 +1998,26 @@ function UnifiedShareFlow({ onNavigateToTab }: ContribPaneProps) {
                   </span>
                   <span className="text-gray-500">transcript only</span>
                 </span>
+              </div>
+
+              {/* Data type legend */}
+              <div className="text-[10px] text-gray-500 border-t border-gray-700/50 pt-2">
+                <span className="text-green-400">Hooks</span> = tool usage only
+                (safer) | <span className="text-blue-400">Transcripts</span> =
+                full messages (may contain file contents) |{" "}
+                <span className="text-purple-400">Managed</span> = started via
+                &apos;aw run&apos;
+              </div>
+              <div className="text-[10px] text-gray-600">
+                Sources: ~/.agentwatch/hooks/, ~/.claude/, ~/.codex/ |{" "}
+                <a
+                  href="https://github.com/nickmvincent/agentwatch/blob/main/docs/data-sources.md"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-400 hover:underline"
+                >
+                  Docs
+                </a>
               </div>
             </div>
           )

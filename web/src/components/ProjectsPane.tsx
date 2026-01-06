@@ -318,6 +318,11 @@ export function ProjectsPane({
               ~/.config/agentwatch/config.toml
             </code>
           </p>
+          <p className="text-[10px] text-gray-600 mt-1">
+            Token/cost data from{" "}
+            <span className="text-green-400">hook sessions</span> only
+            (transcript-only sessions show 0 tokens)
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button

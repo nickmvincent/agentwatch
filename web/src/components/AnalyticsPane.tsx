@@ -712,21 +712,23 @@ export function AnalyticsPane({
           </button>
         </p>
         {dashboard?.sources && (
-          <p className="text-xs text-gray-500 mt-1 flex items-center gap-3">
+          <p className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
             <span>
-              Sources: {dashboard.sources.hook_sessions} hook sessions,{" "}
-              {dashboard.sources.local_transcripts} transcripts
+              Sources:{" "}
+              <span className="text-green-400">
+                {dashboard.sources.hook_sessions} hooks
+              </span>
+              {" + "}
+              <span className="text-blue-400">
+                {dashboard.sources.local_transcripts} transcripts
+              </span>
             </span>
             <span className="text-gray-600">|</span>
-            <span title="Hook sessions and tool usage data">
-              <code className="bg-gray-700/50 px-1 rounded">
-                ~/.agentwatch/hooks/
-              </code>
-            </span>
-            <span title="Enrichments and quality scores">
-              <code className="bg-gray-700/50 px-1 rounded">
-                ~/.agentwatch/enrichments/
-              </code>
+            <span
+              className="text-[10px] text-gray-600"
+              title="Token/cost data comes from both hook sessions and parsed transcripts"
+            >
+              Tokens from both sources
             </span>
           </p>
         )}
@@ -1370,7 +1372,13 @@ export function AnalyticsPane({
                 {costByType.length > 0 ? (
                   <div>
                     <div className="text-sm text-gray-400 mb-2">
-                      By Task Type
+                      By Task Type{" "}
+                      <span
+                        className="text-[10px] text-gray-600 font-normal"
+                        title="Task types are auto-inferred from tool usage patterns (e.g., running tests = 'test', editing .md files = 'docs')"
+                      >
+                        (auto-inferred)
+                      </span>
                     </div>
                     <div className="space-y-2">
                       {costByType.map((item) => {
