@@ -26,13 +26,15 @@ type Tab =
   | "docs"
   | "settings";
 
+type HideableTab = "ports";
+
 const API_BASE = import.meta.env.DEV ? "http://localhost:8421" : "";
 const WATCHER_URL = "http://localhost:8420";
 
 function AnalyzerApp() {
   const [activeTab, setActiveTab] = useState<Tab>("sessions");
   const [watcherConnected, setWatcherConnected] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [hiddenTabs, setHiddenTabs] = useState<Set<HideableTab>>(new Set());
 
   // Check watcher connection
   useEffect(() => {
@@ -148,13 +150,28 @@ function AnalyzerApp() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === "sessions" && <ConversationsPane />}
         {activeTab === "analytics" && <AnalyticsPane />}
-        {activeTab === "projects" && <ProjectsPane />}
+        {activeTab === "projects" && <ProjectsPane repos={[]} />}
         {activeTab === "share" && (
-          <ContribPane message={message} setMessage={setMessage} />
+          <ContribPane onNavigateToTab={(tab) => setActiveTab(tab as Tab)} />
         )}
-        {activeTab === "command" && <CommandCenterPane />}
+        {activeTab === "command" && <CommandCenterPane managedSessions={[]} />}
         {activeTab === "docs" && <DocumentationPane />}
-        {activeTab === "settings" && <SettingsPane />}
+        {activeTab === "settings" && (
+          <SettingsPane
+            hiddenTabs={hiddenTabs}
+            onToggleTabVisibility={(tab) => {
+              setHiddenTabs(prev => {
+                const next = new Set(prev);
+                if (next.has(tab)) {
+                  next.delete(tab);
+                } else {
+                  next.add(tab);
+                }
+                return next;
+              });
+            }}
+          />
+        )}
       </main>
     </div>
   );

@@ -14,10 +14,11 @@ import { LoadingProvider } from "../../context/LoadingContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
 
 type Tab = "agents" | "repos" | "ports" | "timeline";
+type HideableTab = "hooks" | "repos" | "ports";
 
 function WatcherApp() {
-  const [hiddenTabs] = useState<Set<string>>(new Set());
-  const [hiddenPorts] = useState<Set<number>>(new Set());
+  const [hiddenTabs] = useState<Set<HideableTab>>(new Set());
+  const [hiddenPorts, setHiddenPorts] = useState<Set<number>>(new Set());
 
   const {
     connected,
@@ -26,6 +27,7 @@ function WatcherApp() {
     agents,
     ports,
     hookSessions,
+    managedSessions,
     recentToolUsages,
     activityEvents,
     sessionTokens,
@@ -114,7 +116,9 @@ function WatcherApp() {
           <AgentPane
             agents={agents}
             hookSessions={hookSessions}
+            managedSessions={managedSessions}
             recentToolUsages={recentToolUsages}
+            activityEvents={activityEvents}
             sessionTokens={sessionTokens}
           />
         )}
@@ -125,7 +129,17 @@ function WatcherApp() {
           <PortsPane
             ports={ports}
             hiddenPorts={hiddenPorts}
-            onHidePort={() => {}}
+            onToggleHide={(port) => {
+              setHiddenPorts(prev => {
+                const next = new Set(prev);
+                if (next.has(port)) {
+                  next.delete(port);
+                } else {
+                  next.add(port);
+                }
+                return next;
+              });
+            }}
           />
         )}
         {activeTab === "timeline" && (
