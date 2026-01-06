@@ -113,18 +113,37 @@ export interface ConfigData {
     matchers: Array<{ label: string; type: string; pattern: string }>;
   };
   hook_enhancements?: {
+    cost_controls?: {
+      enabled: boolean;
+      session_limit_usd: number;
+      daily_limit_usd: number;
+      warning_threshold: number;
+    };
     notification_hub?: {
       enabled: boolean;
-      desktop?: {
-        enabled: boolean;
-        format?: {
-          show_project_name: boolean;
-          show_session_id: boolean;
-          show_cwd: boolean;
-          show_tool_details: boolean;
-          show_stats: boolean;
-        };
-      };
+      desktop: boolean;
+      webhook?: string;
+    };
+    rules?: {
+      enabled: boolean;
+      rules_file: string;
+      enabled_rule_sets: string[];
+    };
+    token_tracking?: {
+      enabled: boolean;
+      cost_warning_threshold_usd: number;
+    };
+    auto_continue?: {
+      enabled: boolean;
+      on_failing_tests: boolean;
+      on_lint_errors: boolean;
+      max_attempts: number;
+    };
+    stop_blocking?: {
+      enabled: boolean;
+      require_tests_pass: boolean;
+      require_no_lint_errors: boolean;
+      max_block_attempts: number;
     };
   };
   conversations?: {

@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import {
   fetchAgentMetadataByPid,
   fetchAgentOutput,
+  fetchConversationMetadata,
   fetchSessionEnrichments,
   killAgent,
   sendAgentSignal,
-  setAgentMetadataByPid
+  setAgentMetadataByPid,
+  updateConversationMetadata,
+  deleteConversationMetadata
 } from "../api/client";
 import type {
   AgentMetadata,
@@ -17,8 +20,6 @@ import type {
 } from "../api/types";
 import { ConversationAnnotationPanel } from "./ConversationAnnotationPanel";
 import { getProjectName } from "./ConversationCard";
-import { useConversations } from "../context/ConversationContext";
-
 interface AgentDetailModalProps {
   agent: AgentProcess;
   hookSession: HookSession | null;
@@ -44,8 +45,6 @@ export function AgentDetailModal({
   onClose,
   onMetadataUpdate
 }: AgentDetailModalProps) {
-  const { getConversationName, updateConversationName } = useConversations();
-
   const [tab, setTab] = useState<Tab>(hookSession ? "overview" : "output");
   const [output, setOutput] = useState<string[]>([]);
   const [timeline, setTimeline] = useState<ToolUsage[]>(recentToolUsages);
@@ -63,6 +62,8 @@ export function AgentDetailModal({
   // Conversation naming state
   const [editingConversationName, setEditingConversationName] = useState(false);
   const [conversationNameValue, setConversationNameValue] = useState("");
+  const [conversationName, setConversationName] = useState<string | null>(null);
+  const [conversationNameLoading, setConversationNameLoading] = useState(false);
 
   // Conversation enrichments for annotation (if analyzer is available)
   const [sessionEnrichments, setSessionEnrichments] =
@@ -81,17 +82,39 @@ export function AgentDetailModal({
     }
   }, [tab, agent.pid, hookSession?.session_id]);
 
+  const annotationSessionId =
+    linkedConversation?.hook_session?.session_id ||
+    linkedConversation?.correlation_id ||
+    hookSession?.session_id ||
+    null;
+
+  const conversationNamePlaceholder = getProjectName(
+    linkedConversation?.cwd || agent.cwd || ""
+  );
+
+  useEffect(() => {
+    const loadConversationName = async () => {
+      if (tab !== "conversation" || !annotationSessionId) return;
+      setConversationNameLoading(true);
+      try {
+        const data = await fetchConversationMetadata(annotationSessionId);
+        setConversationName(data?.customName ?? null);
+      } catch {
+        setConversationName(null);
+      } finally {
+        setConversationNameLoading(false);
+      }
+    };
+    loadConversationName();
+  }, [tab, annotationSessionId]);
+
   useEffect(() => {
     const loadEnrichments = async () => {
-      if (tab !== "conversation" || !linkedConversation) return;
-      const enrichmentId =
-        linkedConversation.hook_session?.session_id ||
-        linkedConversation.correlation_id;
-      if (!enrichmentId) return;
+      if (tab !== "conversation" || !annotationSessionId) return;
 
       setEnrichmentsLoading(true);
       try {
-        const enrichments = await fetchSessionEnrichments(enrichmentId);
+        const enrichments = await fetchSessionEnrichments(annotationSessionId);
         setSessionEnrichments(enrichments);
       } catch {
         setSessionEnrichments(null);
@@ -101,11 +124,21 @@ export function AgentDetailModal({
     };
 
     loadEnrichments();
-  }, [
-    tab,
-    linkedConversation?.correlation_id,
-    linkedConversation?.hook_session?.session_id
-  ]);
+  }, [tab, annotationSessionId]);
+
+  const saveConversationName = async (name: string | null) => {
+    if (!annotationSessionId) return;
+    if (!name) {
+      await deleteConversationMetadata(annotationSessionId);
+      setConversationName(null);
+      return;
+    }
+
+    const result = await updateConversationMetadata(annotationSessionId, {
+      customName: name
+    });
+    setConversationName(result.customName ?? null);
+  };
 
   // Load metadata on initial render for header display
   useEffect(() => {
@@ -339,7 +372,7 @@ export function AgentDetailModal({
               </button>
             </>
           )}
-          {linkedConversation && (
+          {(linkedConversation || hookSession) && (
             <button
               onClick={() => setTab("conversation")}
               className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
@@ -597,7 +630,7 @@ export function AgentDetailModal({
             </div>
           )}
 
-          {tab === "conversation" && linkedConversation && (
+          {tab === "conversation" && (linkedConversation || hookSession) && (
             <div className="space-y-6">
               {/* Conversation Name */}
               <div>
@@ -605,11 +638,14 @@ export function AgentDetailModal({
                   Conversation Name
                 </h3>
                 {(() => {
-                  const convId =
-                    linkedConversation.correlation_id ||
-                    linkedConversation.hook_session?.session_id ||
-                    "";
-                  const currentName = getConversationName(convId);
+                  const currentName = conversationName;
+                  if (conversationNameLoading) {
+                    return (
+                      <div className="text-sm text-gray-500">
+                        Loading conversation name...
+                      </div>
+                    );
+                  }
                   return editingConversationName ? (
                     <div className="flex gap-2">
                       <input
@@ -618,13 +654,12 @@ export function AgentDetailModal({
                         onChange={(e) =>
                           setConversationNameValue(e.target.value)
                         }
-                        placeholder={getProjectName(linkedConversation.cwd)}
+                        placeholder={conversationNamePlaceholder}
                         className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
-                            updateConversationName(
-                              convId,
+                            saveConversationName(
                               conversationNameValue.trim() || null
                             );
                             setEditingConversationName(false);
@@ -635,8 +670,7 @@ export function AgentDetailModal({
                       />
                       <button
                         onClick={() => {
-                          updateConversationName(
-                            convId,
+                          saveConversationName(
                             conversationNameValue.trim() || null
                           );
                           setEditingConversationName(false);
@@ -660,7 +694,7 @@ export function AgentDetailModal({
                         }
                       >
                         {currentName ||
-                          getProjectName(linkedConversation.cwd) ||
+                          conversationNamePlaceholder ||
                           "Unnamed"}
                       </span>
                       <button
@@ -679,54 +713,92 @@ export function AgentDetailModal({
               </div>
 
               {/* Conversation Overview */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
-                  Linked Conversation
-                </h3>
-                <div className="bg-gray-750 rounded-lg p-4 space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Match Type</span>
-                    <span
-                      className={`${
-                        linkedConversation.match_type === "exact"
-                          ? "text-green-400"
-                          : linkedConversation.match_type === "confident"
-                            ? "text-yellow-400"
-                            : "text-orange-400"
-                      }`}
-                    >
-                      {linkedConversation.match_type}
-                      {linkedConversation.match_details?.score && (
-                        <span className="text-gray-500 ml-1">
-                          ({linkedConversation.match_details.score}%)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Project</span>
-                    <span className="text-gray-300">
-                      {getProjectName(linkedConversation.cwd)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Agent</span>
-                    <span className="text-gray-300">
-                      {linkedConversation.agent}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Started</span>
-                    <span className="text-gray-300">
-                      {new Date(
-                        linkedConversation.start_time > 1e12
-                          ? linkedConversation.start_time
-                          : linkedConversation.start_time * 1000
-                      ).toLocaleString()}
-                    </span>
+              {linkedConversation ? (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+                    Linked Conversation
+                  </h3>
+                  <div className="bg-gray-750 rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Match Type</span>
+                      <span
+                        className={`${
+                          linkedConversation.match_type === "exact"
+                            ? "text-green-400"
+                            : linkedConversation.match_type === "confident"
+                              ? "text-yellow-400"
+                              : "text-orange-400"
+                        }`}
+                      >
+                        {linkedConversation.match_type}
+                        {linkedConversation.match_details?.score && (
+                          <span className="text-gray-500 ml-1">
+                            ({linkedConversation.match_details.score}%)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Project</span>
+                      <span className="text-gray-300">
+                        {getProjectName(linkedConversation.cwd)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Agent</span>
+                      <span className="text-gray-300">
+                        {linkedConversation.agent}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Started</span>
+                      <span className="text-gray-300">
+                        {new Date(
+                          linkedConversation.start_time > 1e12
+                            ? linkedConversation.start_time
+                            : linkedConversation.start_time * 1000
+                        ).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : hookSession ? (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+                    Hook Session
+                  </h3>
+                  <div className="bg-gray-750 rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Session ID</span>
+                      <span className="text-gray-300 font-mono text-sm">
+                        {hookSession.session_id.slice(0, 8)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Started</span>
+                      <span className="text-gray-300">
+                        {new Date(
+                          hookSession.start_time > 1e12
+                            ? hookSession.start_time
+                            : hookSession.start_time * 1000
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Tool Calls</span>
+                      <span className="text-gray-300">
+                        {hookSession.tool_count}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Permission</span>
+                      <span className="text-gray-300">
+                        {hookSession.permission_mode}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Available Data */}
               <div>
@@ -735,40 +807,68 @@ export function AgentDetailModal({
                 </h3>
                 <div className="space-y-2">
                   <div
-                    className={`p-3 rounded-lg ${linkedConversation.hook_session ? "bg-green-900/20 border border-green-800/50" : "bg-gray-700/30"}`}
+                    className={`p-3 rounded-lg ${
+                      linkedConversation?.hook_session || hookSession
+                        ? "bg-green-900/20 border border-green-800/50"
+                        : "bg-gray-700/30"
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`w-2 h-2 rounded-full ${linkedConversation.hook_session ? "bg-green-400" : "bg-gray-500"}`}
+                          className={`w-2 h-2 rounded-full ${
+                            linkedConversation?.hook_session || hookSession
+                              ? "bg-green-400"
+                              : "bg-gray-500"
+                          }`}
                         />
                         <span className="text-sm text-white">Hook Session</span>
                       </div>
                       <span
-                        className={`text-xs ${linkedConversation.hook_session ? "text-green-400" : "text-gray-500"}`}
+                        className={`text-xs ${
+                          linkedConversation?.hook_session || hookSession
+                            ? "text-green-400"
+                            : "text-gray-500"
+                        }`}
                       >
-                        {linkedConversation.hook_session
-                          ? `${linkedConversation.hook_session.tool_count} tools`
+                        {linkedConversation?.hook_session || hookSession
+                          ? `${
+                              linkedConversation?.hook_session?.tool_count ??
+                              hookSession?.tool_count ??
+                              "?"
+                            } tools`
                           : "Not captured"}
                       </span>
                     </div>
                   </div>
                   <div
-                    className={`p-3 rounded-lg ${linkedConversation.transcript ? "bg-blue-900/20 border border-blue-800/50" : "bg-gray-700/30"}`}
+                    className={`p-3 rounded-lg ${
+                      linkedConversation?.transcript
+                        ? "bg-blue-900/20 border border-blue-800/50"
+                        : "bg-gray-700/30"
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`w-2 h-2 rounded-full ${linkedConversation.transcript ? "bg-blue-400" : "bg-gray-500"}`}
+                          className={`w-2 h-2 rounded-full ${
+                            linkedConversation?.transcript
+                              ? "bg-blue-400"
+                              : "bg-gray-500"
+                          }`}
                         />
                         <span className="text-sm text-white">Transcript</span>
                       </div>
                       <span
-                        className={`text-xs ${linkedConversation.transcript ? "text-blue-400" : "text-gray-500"}`}
+                        className={`text-xs ${
+                          linkedConversation?.transcript
+                            ? "text-blue-400"
+                            : "text-gray-500"
+                        }`}
                       >
-                        {linkedConversation.transcript
+                        {linkedConversation?.transcript
                           ? `${linkedConversation.transcript.message_count || "?"} messages, ${Math.round(linkedConversation.transcript.size_bytes / 1024)}KB`
-                          : "Not found"}
+                          : "Not available in watcher"}
                       </span>
                     </div>
                   </div>
@@ -785,31 +885,16 @@ export function AgentDetailModal({
                     Loading annotation data...
                   </div>
                 ) : linkedConversation.hook_session?.session_id ||
-                  linkedConversation.correlation_id ? (
+                  linkedConversation.correlation_id ||
+                  hookSession?.session_id ? (
                   <ConversationAnnotationPanel
-                    sessionId={
-                      linkedConversation.hook_session?.session_id ||
-                      linkedConversation.correlation_id
-                    }
+                    sessionId={annotationSessionId || ""}
                     manualAnnotation={
                       sessionEnrichments?.manual_annotation ?? null
                     }
-                    conversationName={getConversationName(
-                      linkedConversation.correlation_id ||
-                        linkedConversation.hook_session?.session_id ||
-                        ""
-                    )}
-                    conversationNamePlaceholder={getProjectName(
-                      linkedConversation.cwd
-                    )}
-                    onConversationNameSave={(name) =>
-                      updateConversationName(
-                        linkedConversation.correlation_id ||
-                          linkedConversation.hook_session?.session_id ||
-                          "",
-                        name
-                      )
-                    }
+                    conversationName={conversationName}
+                    conversationNamePlaceholder={conversationNamePlaceholder}
+                    onConversationNameSave={saveConversationName}
                     onAnnotationSaved={(manual) =>
                       setSessionEnrichments((prev) =>
                         prev
@@ -825,20 +910,6 @@ export function AgentDetailModal({
                 )}
               </div>
 
-              {/* View Full Details Button */}
-              <div className="pt-4 border-t border-gray-700">
-                <button
-                  onClick={() => {
-                    // Navigate to Conversations tab with this conversation selected
-                    const event = new KeyboardEvent("keydown", { key: "5" });
-                    window.dispatchEvent(event);
-                    // Note: Full navigation would require passing state through context
-                  }}
-                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium text-sm"
-                >
-                  View in Conversations Tab
-                </button>
-              </div>
             </div>
           )}
 

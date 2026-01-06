@@ -8,7 +8,7 @@
 ## Watcher
 
 ### Agents
-- Status: Done (annotation links are limited if analyzer is offline).
+- Status: Done (one-off annotations handled in watcher without analyzer).
 - Scope: running agents list with status (Active/Waiting/Stalled/Done), custom names/tags, PID, uptime, CPU/mem, last activity (source + time), runtime location, project association, per-agent detail modal, activity feed.
 - Data Sources:
   - Process scan: `ps -axo` + cwd resolution via `lsof` (cached).
@@ -17,6 +17,7 @@
 - File I/O (UX visible):
   - `~/.agentwatch/processes/` (copy button in About data).
   - `~/.agentwatch/enrichments/store.json` (copy button in annotation panel).
+  - `~/.agentwatch/conversation-metadata.json` (copy button in annotation panel).
 - File I/O (UX not shown):
   - `~/.agentwatch/agent-metadata.json` (custom names/tags).
   - `~/.agentwatch/hooks/` (session/tool logs).
@@ -31,7 +32,6 @@
   - `packages/monitor/test/scanners.test.ts` (ProcessScanner).
 - Open Questions:
   - Should agent metadata file path be visible with copy button?
-  - Should analyzer offline state hide or disable annotation UI explicitly?
 
 ### Repos + Projects
 - Status: Done for shared CRUD and watcher filtering; Partial for richer per-project stats.
@@ -100,7 +100,7 @@
 
 ### Settings
 - Status: Done.
-- Scope: watcher config editor with load/save/reload and restart hint.
+- Scope: watcher config editor with load/save/reload and restart hint; hook enhancements summary tied to watcher config.
 - Data Sources:
   - Watcher config TOML.
 - File I/O (UX visible):
@@ -113,13 +113,12 @@
   - Add structured editor for common settings (notifications, matchers) vs raw edit only?
 
 ### Analyzer Availability Indicator
-- Status: Done.
-- Scope: Watcher header shows Analyzer offline state.
-- Data Sources:
-  - Periodic health check (`/api/health` on analyzer).
+- Status: Removed.
+- Scope: Watcher no longer pings analyzer; analyzer is opened explicitly when needed.
+- Data Sources: none.
 - File I/O (UX visible): none.
 - Calculations Shown: none.
-- Live Indicators: health check polling every 10s.
+- Live Indicators: none.
 - Tests: none.
 - Open Questions: none.
 

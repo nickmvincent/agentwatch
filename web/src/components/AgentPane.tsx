@@ -28,6 +28,7 @@ interface AgentPaneProps {
   recentToolUsages: ToolUsage[];
   activityEvents: ActivityEvent[];
   sessionTokens: Record<string, SessionTokens>;
+  showHookEnhancements?: boolean;
 }
 
 interface GroupedAgents {
@@ -192,7 +193,8 @@ export function AgentPane({
   managedSessions,
   recentToolUsages,
   activityEvents,
-  sessionTokens
+  sessionTokens,
+  showHookEnhancements = true
 }: AgentPaneProps) {
   const [selectedPid, setSelectedPid] = useState<number | null>(null);
   const [filter, setFilter] = useState("");
@@ -682,7 +684,7 @@ export function AgentPane({
         />
 
         {/* Hook Enhancements Section */}
-        <HookEnhancementsSection />
+        {showHookEnhancements && <HookEnhancementsSection />}
       </div>
 
       {selectedAgent && (

@@ -12,7 +12,6 @@ import { ProjectsPane } from "../../components/ProjectsPane";
 import { WatcherSettingsPane } from "../../components/WatcherSettingsPane";
 import { fetchProjects } from "../../api/client";
 import type { AgentProcess, Project, RepoStatus } from "../../api/types";
-import { ConversationProvider } from "../../context/ConversationContext";
 import { DataProvider } from "../../context/DataProvider";
 import { LoadingProvider } from "../../context/LoadingContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -133,6 +132,7 @@ function WatcherApp() {
             recentToolUsages={recentToolUsages}
             activityEvents={activityEvents}
             sessionTokens={sessionTokens}
+            showHookEnhancements={false}
           />
         )}
         {activeTab === "repos" && (
@@ -242,9 +242,7 @@ export default function WatcherAppWrapper() {
   return (
     <LoadingProvider>
       <DataProvider>
-        <ConversationProvider>
-          <WatcherApp />
-        </ConversationProvider>
+        <WatcherApp />
       </DataProvider>
     </LoadingProvider>
   );

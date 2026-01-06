@@ -1,19 +1,10 @@
 import { useEffect, useState } from "react";
-import type {
-  CostStatus,
-  HookEnhancementsConfig,
-  RulesListResult
-} from "../api/types";
-
-const API_BASE = import.meta.env.VITE_API_BASE
-  ? import.meta.env.VITE_API_BASE.replace(/\/api$/, "")
-  : "";
+import { fetchConfig, type ConfigData } from "../api/client";
 
 export function HookEnhancementsSection() {
   const [expanded, setExpanded] = useState(false);
-  const [config, setConfig] = useState<HookEnhancementsConfig | null>(null);
-  const [costStatus, setCostStatus] = useState<CostStatus | null>(null);
-  const [rules, setRules] = useState<RulesListResult | null>(null);
+  const [config, setConfig] = useState<ConfigData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -21,26 +12,31 @@ export function HookEnhancementsSection() {
 
   const loadData = async () => {
     try {
-      const [configRes, costRes, rulesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/hook-enhancements`),
-        fetch(`${API_BASE}/api/cost/status`),
-        fetch(`${API_BASE}/api/rules`)
-      ]);
-      if (configRes.ok) setConfig(await configRes.json());
-      if (costRes.ok) setCostStatus(await costRes.json());
-      if (rulesRes.ok) setRules(await rulesRes.json());
+      const data = await fetchConfig();
+      setConfig(data);
     } catch {
       // Ignore
+    } finally {
+      setLoading(false);
     }
   };
 
+  const hookConfig = config?.hook_enhancements;
+  const costControls = hookConfig?.cost_controls;
+  const rulesConfig = hookConfig?.rules;
+  const notificationHub = hookConfig?.notification_hub;
+  const tokenTracking = hookConfig?.token_tracking;
+  const autoContinue = hookConfig?.auto_continue;
+  const stopBlocking = hookConfig?.stop_blocking;
+
   // Count enabled features
   const enabledCount = [
-    config?.rules?.enabled,
-    config?.auto_permissions?.enabled,
-    config?.context_injection?.inject_git_context,
-    config?.input_modification?.enabled,
-    costStatus?.enabled
+    costControls?.enabled,
+    rulesConfig?.enabled,
+    notificationHub?.enabled,
+    tokenTracking?.enabled,
+    autoContinue?.enabled,
+    stopBlocking?.enabled
   ].filter(Boolean).length;
 
   return (
@@ -59,7 +55,7 @@ export function HookEnhancementsSection() {
             </span>
           )}
           <span className="text-xs text-gray-400">
-            Configure token controls, rules, and notifications
+            Configure watcher-side hook behavior
           </span>
         </div>
         <span className="text-gray-400">{expanded ? "▼" : "▶"}</span>
@@ -67,84 +63,80 @@ export function HookEnhancementsSection() {
 
       {expanded && (
         <div className="border-t border-gray-700 p-4 space-y-4">
+          {loading && (
+            <div className="text-xs text-gray-500">Loading hook settings...</div>
+          )}
+
           {/* Feature Toggles Summary */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <FeatureCard
-              label="Custom Rules"
-              enabled={config?.rules?.enabled}
-              description="Block/allow patterns"
-              count={rules?.rules?.length}
+              label="Cost Controls"
+              enabled={costControls?.enabled}
+              description="Budget thresholds and warnings"
             />
             <FeatureCard
-              label="Auto Permissions"
-              enabled={config?.auto_permissions?.enabled}
-              description="Auto-approve safe tools"
+              label="Rules"
+              enabled={rulesConfig?.enabled}
+              description="Policy checks for hooks"
+              detail={rulesConfig?.rules_file}
             />
             <FeatureCard
-              label="Git Context"
-              enabled={config?.context_injection?.inject_git_context}
-              description="Inject git info"
+              label="Notifications"
+              enabled={notificationHub?.enabled}
+              description="Desktop or webhook alerts"
             />
             <FeatureCard
-              label="Input Modification"
-              enabled={config?.input_modification?.enabled}
-              description="Modify tool inputs"
+              label="Token Tracking"
+              enabled={tokenTracking?.enabled}
+              description="Warn on cost thresholds"
             />
             <FeatureCard
-              label="Cost Tracking"
-              enabled={costStatus?.enabled}
-              description="Track usage costs"
+              label="Auto Continue"
+              enabled={autoContinue?.enabled}
+              description="Auto-continue on failures"
+            />
+            <FeatureCard
+              label="Stop Blocking"
+              enabled={stopBlocking?.enabled}
+              description="Require passing checks"
             />
           </div>
 
-          {/* Cost Status */}
-          {costStatus?.enabled && (
+          {/* Cost Controls */}
+          {costControls?.enabled && (
             <div className="bg-gray-750 rounded p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-300">
-                  Cost Tracking
+                  Cost Controls
                 </span>
-                {costStatus.limits?.monthly_usd && (
-                  <span className="text-xs text-gray-400">
-                    Limit: ${costStatus.limits.monthly_usd}/mo
-                  </span>
-                )}
               </div>
               <div className="flex gap-4 text-xs">
                 <div>
                   <span className="text-gray-400">Today:</span>{" "}
                   <span className="text-white">
-                    ${costStatus.daily?.cost_usd?.toFixed(2) ?? "0.00"}
+                    ${costControls.daily_limit_usd.toFixed(2)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-400">Month:</span>{" "}
+                  <span className="text-gray-400">Session:</span>{" "}
                   <span className="text-white">
-                    ${costStatus.monthly?.cost_usd?.toFixed(2) ?? "0.00"}
+                    ${costControls.session_limit_usd.toFixed(2)}
                   </span>
                 </div>
-                {costStatus.limits?.monthly_usd &&
-                  costStatus.monthly?.cost_usd && (
-                    <div>
-                      <span className="text-gray-400">Used:</span>{" "}
-                      <span className="text-white">
-                        {(
-                          (costStatus.monthly.cost_usd /
-                            costStatus.limits.monthly_usd) *
-                          100
-                        ).toFixed(0)}
-                        %
-                      </span>
-                    </div>
-                  )}
+                <div>
+                  <span className="text-gray-400">Warn at:</span>{" "}
+                  <span className="text-white">
+                    {(costControls.warning_threshold * 100).toFixed(0)}
+                    %
+                  </span>
+                </div>
               </div>
             </div>
           )}
 
           {/* Link to Settings */}
           <div className="text-xs text-gray-400">
-            Configure these features in{" "}
-            <span className="text-cyan-400">Settings → Hook Enhancements</span>
+            Configure these values in the watcher settings file below.
           </div>
         </div>
       )}
@@ -156,12 +148,14 @@ function FeatureCard({
   label,
   enabled,
   description,
-  count
+  count,
+  detail
 }: {
   label: string;
   enabled?: boolean;
   description: string;
   count?: number;
+  detail?: string;
 }) {
   return (
     <div
@@ -183,6 +177,11 @@ function FeatureCard({
         )}
       </div>
       <div className="text-xs text-gray-400">{description}</div>
+      {detail && (
+        <div className="mt-1 text-[10px] text-gray-500 truncate">
+          {detail}
+        </div>
+      )}
     </div>
   );
 }

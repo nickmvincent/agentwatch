@@ -35,7 +35,8 @@ interface UseWebSocketResult {
 }
 
 export function useWebSocket(
-  hiddenTabs: Set<HideableTab> = new Set()
+  hiddenTabs: Set<HideableTab> = new Set(),
+  options?: { includeManagedSessions?: boolean }
 ): UseWebSocketResult {
   const [connected, setConnected] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -55,11 +56,18 @@ export function useWebSocket(
   const pausedRef = useRef(paused);
   const eventIdRef = useRef(0);
   const hiddenTabsRef = useRef(hiddenTabs);
+  const includeManagedSessionsRef = useRef(
+    options?.includeManagedSessions ?? true
+  );
 
   // Keep hiddenTabsRef in sync
   useEffect(() => {
     hiddenTabsRef.current = hiddenTabs;
   }, [hiddenTabs]);
+
+  useEffect(() => {
+    includeManagedSessionsRef.current = options?.includeManagedSessions ?? true;
+  }, [options?.includeManagedSessions]);
 
   // Keep pausedRef in sync
   useEffect(() => {
@@ -101,8 +109,10 @@ export function useWebSocket(
       if (!hiddenTabsRef.current.has("ports")) {
         fetchInitialPorts();
       }
-      // Always fetch managed sessions (for aw run indicator on agents tab)
-      fetchManagedSessions();
+      if (includeManagedSessionsRef.current) {
+        // Fetch managed sessions (for aw run indicator on agents tab)
+        fetchManagedSessions();
+      }
     };
 
     ws.onclose = () => {
@@ -414,8 +424,10 @@ export function useWebSocket(
         await fetchInitialHookData();
       }
 
-      // Always fetch managed sessions (for aw run indicator on agents tab)
-      await fetchManagedSessions();
+      if (includeManagedSessionsRef.current) {
+        // Fetch managed sessions (for aw run indicator on agents tab)
+        await fetchManagedSessions();
+      }
     } catch {
       // Ignore fetch errors
     }
@@ -436,6 +448,7 @@ export function useWebSocket(
 
   // Poll managed sessions when there are active sessions (to detect when they end)
   useEffect(() => {
+    if (!includeManagedSessionsRef.current) return;
     const hasRunning = managedSessions.some((s) => s.status === "running");
     if (!hasRunning || paused) return;
 

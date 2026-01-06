@@ -83,6 +83,43 @@ export function registerConfigRoutes(app: Hono, config: WatcherConfig): void {
           type: m.type,
           pattern: m.pattern
         }))
+      },
+      hook_enhancements: {
+        cost_controls: {
+          enabled: config.hookEnhancements.costControls.enabled,
+          session_limit_usd: config.hookEnhancements.costControls.sessionLimitUsd,
+          daily_limit_usd: config.hookEnhancements.costControls.dailyLimitUsd,
+          warning_threshold: config.hookEnhancements.costControls.warningThreshold
+        },
+        notification_hub: {
+          enabled: config.hookEnhancements.notificationHub.enabled,
+          desktop: config.hookEnhancements.notificationHub.desktop,
+          webhook: config.hookEnhancements.notificationHub.webhook
+        },
+        rules: {
+          enabled: config.hookEnhancements.rules.enabled,
+          rules_file: config.hookEnhancements.rules.rulesFile,
+          enabled_rule_sets: config.hookEnhancements.rules.enabledRuleSets
+        },
+        token_tracking: {
+          enabled: config.hookEnhancements.tokenTracking.enabled,
+          cost_warning_threshold_usd:
+            config.hookEnhancements.tokenTracking.costWarningThresholdUsd
+        },
+        auto_continue: {
+          enabled: config.hookEnhancements.autoContinue.enabled,
+          on_failing_tests: config.hookEnhancements.autoContinue.onFailingTests,
+          on_lint_errors: config.hookEnhancements.autoContinue.onLintErrors,
+          max_attempts: config.hookEnhancements.autoContinue.maxAttempts
+        },
+        stop_blocking: {
+          enabled: config.hookEnhancements.stopBlocking.enabled,
+          require_tests_pass:
+            config.hookEnhancements.stopBlocking.requireTestsPass,
+          require_no_lint_errors:
+            config.hookEnhancements.stopBlocking.requireNoLintErrors,
+          max_block_attempts: config.hookEnhancements.stopBlocking.maxBlockAttempts
+        }
       }
     });
   });

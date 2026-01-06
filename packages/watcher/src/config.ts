@@ -364,6 +364,153 @@ function parseWatcherConfig(content: string): WatcherConfig {
   if (dailyLimit !== null)
     config.hookEnhancements.costControls.dailyLimitUsd = dailyLimit;
 
+  const warningThreshold = parseNumberField(
+    content,
+    "hook_enhancements.cost_controls",
+    "warning_threshold"
+  );
+  if (warningThreshold !== null)
+    config.hookEnhancements.costControls.warningThreshold = warningThreshold;
+
+  // Parse [hook_enhancements.notification_hub] section
+  const notificationHubEnabled = parseBoolField(
+    content,
+    "hook_enhancements.notification_hub",
+    "enabled"
+  );
+  if (notificationHubEnabled !== null)
+    config.hookEnhancements.notificationHub.enabled = notificationHubEnabled;
+
+  const notificationHubDesktop = parseBoolField(
+    content,
+    "hook_enhancements.notification_hub",
+    "desktop"
+  );
+  if (notificationHubDesktop !== null)
+    config.hookEnhancements.notificationHub.desktop = notificationHubDesktop;
+
+  const notificationHubWebhook = parseStringField(
+    content,
+    "hook_enhancements.notification_hub",
+    "webhook"
+  );
+  if (notificationHubWebhook)
+    config.hookEnhancements.notificationHub.webhook = notificationHubWebhook;
+
+  // Parse [hook_enhancements.rules] section
+  const rulesEnabled = parseBoolField(
+    content,
+    "hook_enhancements.rules",
+    "enabled"
+  );
+  if (rulesEnabled !== null)
+    config.hookEnhancements.rules.enabled = rulesEnabled;
+
+  const rulesFile = parseStringField(
+    content,
+    "hook_enhancements.rules",
+    "rules_file"
+  );
+  if (rulesFile) config.hookEnhancements.rules.rulesFile = rulesFile;
+
+  const enabledRuleSets = parseStringArrayField(
+    content,
+    "hook_enhancements.rules",
+    "enabled_rule_sets"
+  );
+  if (enabledRuleSets) {
+    config.hookEnhancements.rules.enabledRuleSets = enabledRuleSets;
+  }
+
+  // Parse [hook_enhancements.token_tracking] section
+  const tokenTrackingEnabled = parseBoolField(
+    content,
+    "hook_enhancements.token_tracking",
+    "enabled"
+  );
+  if (tokenTrackingEnabled !== null)
+    config.hookEnhancements.tokenTracking.enabled = tokenTrackingEnabled;
+
+  const costWarningThreshold = parseNumberField(
+    content,
+    "hook_enhancements.token_tracking",
+    "cost_warning_threshold_usd"
+  );
+  if (costWarningThreshold !== null)
+    config.hookEnhancements.tokenTracking.costWarningThresholdUsd =
+      costWarningThreshold;
+
+  // Parse [hook_enhancements.auto_continue] section
+  const autoContinueEnabled = parseBoolField(
+    content,
+    "hook_enhancements.auto_continue",
+    "enabled"
+  );
+  if (autoContinueEnabled !== null)
+    config.hookEnhancements.autoContinue.enabled = autoContinueEnabled;
+
+  const autoContinueFailingTests = parseBoolField(
+    content,
+    "hook_enhancements.auto_continue",
+    "on_failing_tests"
+  );
+  if (autoContinueFailingTests !== null)
+    config.hookEnhancements.autoContinue.onFailingTests =
+      autoContinueFailingTests;
+
+  const autoContinueLintErrors = parseBoolField(
+    content,
+    "hook_enhancements.auto_continue",
+    "on_lint_errors"
+  );
+  if (autoContinueLintErrors !== null)
+    config.hookEnhancements.autoContinue.onLintErrors =
+      autoContinueLintErrors;
+
+  const autoContinueAttempts = parseNumberField(
+    content,
+    "hook_enhancements.auto_continue",
+    "max_attempts"
+  );
+  if (autoContinueAttempts !== null)
+    config.hookEnhancements.autoContinue.maxAttempts = autoContinueAttempts;
+
+  // Parse [hook_enhancements.stop_blocking] section
+  const stopBlockingEnabled = parseBoolField(
+    content,
+    "hook_enhancements.stop_blocking",
+    "enabled"
+  );
+  if (stopBlockingEnabled !== null)
+    config.hookEnhancements.stopBlocking.enabled = stopBlockingEnabled;
+
+  const stopBlockingTestsPass = parseBoolField(
+    content,
+    "hook_enhancements.stop_blocking",
+    "require_tests_pass"
+  );
+  if (stopBlockingTestsPass !== null)
+    config.hookEnhancements.stopBlocking.requireTestsPass =
+      stopBlockingTestsPass;
+
+  const stopBlockingLintErrors = parseBoolField(
+    content,
+    "hook_enhancements.stop_blocking",
+    "require_no_lint_errors"
+  );
+  if (stopBlockingLintErrors !== null)
+    config.hookEnhancements.stopBlocking.requireNoLintErrors =
+      stopBlockingLintErrors;
+
+  const stopBlockingAttempts = parseNumberField(
+    content,
+    "hook_enhancements.stop_blocking",
+    "max_block_attempts"
+  );
+  if (stopBlockingAttempts !== null)
+    config.hookEnhancements.stopBlocking.maxBlockAttempts =
+      stopBlockingAttempts;
+
   return config;
 }
 
@@ -465,6 +612,30 @@ function parseBoolField(
   );
   const match = content.match(regex);
   return match ? match[1] === "true" : null;
+}
+
+function parseStringArrayField(
+  content: string,
+  section: string,
+  field: string
+): string[] | null {
+  const sectionPattern = section.includes(".")
+    ? section
+        .split(".")
+        .map((s) => `\\[${s}\\]`)
+        .join("[\\s\\S]*?")
+    : `\\[${section}\\]`;
+  const regex = new RegExp(
+    `${sectionPattern}[\\s\\S]*?${field}\\s*=\\s*\\[([^\\]]*)\\]`
+  );
+  const match = content.match(regex);
+  if (!match?.[1]) return null;
+
+  const items = match[1]
+    .split(",")
+    .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+  return items.length > 0 ? items : null;
 }
 
 // =========== Config Saving ===========

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchRawConfig, saveRawConfig } from "../api/client";
+import { HookEnhancementsSection } from "./HookEnhancementsSection";
 
 export function WatcherSettingsPane() {
   const [content, setContent] = useState("");
@@ -76,6 +77,8 @@ export function WatcherSettingsPane() {
           </div>
         )}
       </div>
+
+      <HookEnhancementsSection />
 
       {error && (
         <div className="bg-red-900/30 border border-red-700 text-red-300 text-sm rounded p-3">

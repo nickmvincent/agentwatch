@@ -1,5 +1,5 @@
 /**
- * Watcher Header - Extended header with sandbox status and analyzer link.
+ * Watcher Header - Extended header with sandbox status.
  */
 
 import { useEffect, useState } from "react";
@@ -42,7 +42,6 @@ export function WatcherHeader({
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus | null>(
     null
   );
-  const [analyzerRunning, setAnalyzerRunning] = useState(false);
 
   // Check sandbox status on mount
   useEffect(() => {
@@ -61,22 +60,6 @@ export function WatcherHeader({
     checkSandbox();
     // Refresh every 30 seconds
     const interval = setInterval(checkSandbox, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Check if analyzer is running
-  useEffect(() => {
-    const checkAnalyzer = async () => {
-      try {
-        const res = await fetch(`${ANALYZER_URL}/api/health`);
-        setAnalyzerRunning(res.ok);
-      } catch {
-        setAnalyzerRunning(false);
-      }
-    };
-
-    checkAnalyzer();
-    const interval = setInterval(checkAnalyzer, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -109,31 +92,15 @@ export function WatcherHeader({
             <span title="Active hook sessions">{sessionCount} sessions</span>
             <span>{agentCount} agents</span>
             <span>{repoCount} repos</span>
-            {!analyzerRunning && (
-              <span className="px-2 py-0.5 rounded text-xs bg-red-900/60 text-red-300">
-                Analyzer offline
-              </span>
-            )}
           </div>
 
           {/* Open Analyzer Button */}
           <button
             onClick={openAnalyzer}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-              analyzerRunning
-                ? "bg-blue-600 hover:bg-blue-500 text-white"
-                : "bg-gray-700 hover:bg-gray-600 text-gray-300"
-            }`}
-            title={
-              analyzerRunning
-                ? "Open Analyzer dashboard"
-                : "Analyzer not running. Start with: aw analyze"
-            }
+            className="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-gray-700 hover:bg-gray-600 text-gray-300"
+            title="Open Analyzer dashboard"
           >
-            {analyzerRunning ? "Open Analyzer" : "Analyzer"}
-            {!analyzerRunning && (
-              <span className="ml-1 text-gray-500">(not running)</span>
-            )}
+            Open Analyzer
           </button>
         </div>
       </div>

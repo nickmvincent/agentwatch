@@ -47,3 +47,7 @@ export {
 export { registerConfigRoutes, registerClaudeSettingsRoutes } from "./config";
 export { registerSandboxRoutes } from "./sandbox";
 export { registerProjectRoutes } from "./projects";
+export { registerAgentMetadataRoutes } from "./agent-metadata";
+export { registerConversationMetadataRoutes } from "./conversation-metadata";
+export { registerEnrichmentRoutes } from "./enrichments";
+export { registerManagedSessionRoutes } from "./managed-sessions";

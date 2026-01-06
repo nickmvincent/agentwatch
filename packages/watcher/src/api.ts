@@ -9,6 +9,7 @@
  * - `routes/monitoring.ts` - Health checks, repos, ports
  * - `routes/config.ts` - Watcher and Claude settings
  * - `routes/sandbox.ts` - Docker sandbox status and permission presets
+ * - `routes/managed-sessions.ts` - Managed sessions launched via `aw run`
  *
  * ## Endpoints Overview
  *
@@ -80,7 +81,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { createBunWebSocket, serveStatic } from "hono/bun";
 
-import type { DataStore, HookStore } from "@agentwatch/monitor";
+import type { DataStore, HookStore, SessionStore } from "@agentwatch/monitor";
 import {
   repoToDict,
   agentToDict,
@@ -95,6 +96,7 @@ import type { SessionLogger } from "./session-logger";
 // Import modular routes
 import {
   registerAgentRoutes,
+  registerAgentMetadataRoutes,
   registerHookSessionRoutes,
   registerHookStatsRoutes,
   registerHookEventRoutes,
@@ -102,7 +104,10 @@ import {
   registerConfigRoutes,
   registerClaudeSettingsRoutes,
   registerSandboxRoutes,
-  registerProjectRoutes
+  registerProjectRoutes,
+  registerManagedSessionRoutes,
+  registerConversationMetadataRoutes,
+  registerEnrichmentRoutes
 } from "./routes";
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
@@ -126,6 +131,8 @@ export interface WatcherAppState {
   hookStore: HookStore;
   /** Session logging to disk */
   sessionLogger: SessionLogger;
+  /** Managed session store */
+  sessionStore: SessionStore;
   /** WebSocket connection manager */
   connectionManager: ConnectionManager;
   /** Current watcher configuration */
@@ -134,6 +141,8 @@ export interface WatcherAppState {
   startedAt: number;
   /** Callback to trigger graceful shutdown */
   shutdown?: () => void;
+  /** Trigger immediate repo rescan */
+  rescanRepos?: () => void;
 }
 
 /**
@@ -188,11 +197,15 @@ export function createWatcherApp(state: WatcherAppState): Hono {
   registerMonitoringRoutes(app, {
     store: state.store,
     startedAt: state.startedAt,
-    shutdown: state.shutdown
+    shutdown: state.shutdown,
+    rescanRepos: state.rescanRepos
   });
 
   // Agent monitoring and control
   registerAgentRoutes(app, state.store);
+
+  // Agent metadata
+  registerAgentMetadataRoutes(app, state.store);
 
   // Watcher configuration
   registerConfigRoutes(app, state.config);
@@ -206,11 +219,20 @@ export function createWatcherApp(state: WatcherAppState): Hono {
   // Projects (shared config with analyzer)
   registerProjectRoutes(app, state.store);
 
+  // Conversation metadata (naming)
+  registerConversationMetadataRoutes(app);
+
+  // Enrichments (annotations)
+  registerEnrichmentRoutes(app);
+
   // Hook sessions and timeline
   registerHookSessionRoutes(app, state.hookStore);
 
   // Hook statistics
   registerHookStatsRoutes(app, state.hookStore);
+
+  // Managed sessions (aw run)
+  registerManagedSessionRoutes(app, state.sessionStore);
 
   // Hook event handlers (called by Claude Code)
   registerHookEventRoutes(app, state.hookStore, state.connectionManager);
