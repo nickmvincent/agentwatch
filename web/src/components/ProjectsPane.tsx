@@ -8,6 +8,7 @@ import {
   updateProject
 } from "../api/client";
 import type { Project, ProjectAnalyticsItem, RepoStatus } from "../api/types";
+import { useLoading } from "../context/LoadingContext";
 
 // Refresh data if tab has been hidden for more than 5 minutes
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
@@ -36,10 +37,17 @@ export function ProjectsPane({
   isActive = true,
   activatedAt = 0
 }: ProjectsPaneProps) {
+  const { setLoading: setGlobalLoading } = useLoading();
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const lastLoadedAt = useRef<number>(0);
+
+  // Report loading state to global context
+  useEffect(() => {
+    setGlobalLoading("projects", loading);
+    return () => setGlobalLoading("projects", false);
+  }, [loading, setGlobalLoading]);
 
   // Edit modal state
   const [editingProject, setEditingProject] = useState<ProjectWithStats | null>(

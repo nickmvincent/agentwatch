@@ -600,21 +600,19 @@ export function AgentPane({
         </div>
       </div>
 
-      {/* Hook Sections - only show if there are active hook sessions */}
-      {hookSessions.some((s) => s.active) && (
-        <div className="mt-6 space-y-4">
-          {/* Hook Timeline Section */}
-          <HookTimelineSection
-            hookSessions={hookSessions}
-            recentToolUsages={recentToolUsages}
-            activityEvents={activityEvents}
-            sessionTokens={sessionTokens}
-          />
+      {/* Hook Sections - always show with empty state when no active sessions */}
+      <div className="mt-6 space-y-4">
+        {/* Hook Timeline Section */}
+        <HookTimelineSection
+          hookSessions={hookSessions}
+          recentToolUsages={recentToolUsages}
+          activityEvents={activityEvents}
+          sessionTokens={sessionTokens}
+        />
 
-          {/* Hook Enhancements Section */}
-          <HookEnhancementsSection />
-        </div>
-      )}
+        {/* Hook Enhancements Section */}
+        <HookEnhancementsSection />
+      </div>
 
       {selectedAgent && (
         <AgentDetailModal

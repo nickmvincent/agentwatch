@@ -11,6 +11,7 @@ import { ProjectsPane } from "./components/ProjectsPane";
 import { SettingsPane } from "./components/SettingsPane";
 import { ConversationProvider } from "./context/ConversationContext";
 import { DataProvider } from "./context/DataProvider";
+import { LoadingProvider, useLoading } from "./context/LoadingContext";
 import { useWebSocket } from "./hooks/useWebSocket";
 
 type Tab =
@@ -275,414 +276,508 @@ function App() {
   }, [hiddenTabs, activeTab]);
 
   return (
-    <DataProvider>
-      <ConversationProvider>
-        <div className="min-h-screen bg-gray-900 text-gray-100">
-          <Header
+    <LoadingProvider>
+      <DataProvider>
+        <ConversationProvider>
+          <AppInner
             connected={connected}
-            repoCount={repos.length}
-            agentCount={agents.length}
+            repos={repos}
+            agents={agents}
+            ports={ports}
+            hiddenTabs={hiddenTabs}
+            hiddenPorts={hiddenPorts}
+            toggleHidePort={toggleHidePort}
+            bulkHidePorts={bulkHidePorts}
+            clearHiddenPorts={clearHiddenPorts}
+            toggleTabVisibility={toggleTabVisibility}
+            hookSessions={hookSessions}
+            managedSessions={managedSessions}
+            recentToolUsages={recentToolUsages}
+            activityEvents={activityEvents}
+            sessionTokens={sessionTokens}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            visitedTabs={visitedTabs}
+            tabActivatedAt={tabActivatedAt}
+            enhancedCount={enhancedCount}
+            visiblePortsCount={visiblePortsCount}
+            dirtyRepos={dirtyRepos}
+            paused={paused}
+            setPaused={setPaused}
+            refresh={refresh}
+            message={message}
+            showMessage={showMessage}
+            showHelp={showHelp}
+            setShowHelp={setShowHelp}
           />
+        </ConversationProvider>
+      </DataProvider>
+    </LoadingProvider>
+  );
+}
 
-          {/* Tab Navigation with Controls */}
-          <div className="container mx-auto px-4 pt-4">
-            <div className="flex items-center justify-between border-b border-gray-700">
-              <div
-                className="flex gap-1 overflow-x-auto scrollbar-hide"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+// Inner component that can use LoadingContext
+function AppInner({
+  connected,
+  repos,
+  agents,
+  ports,
+  hiddenTabs,
+  hiddenPorts,
+  toggleHidePort,
+  bulkHidePorts,
+  clearHiddenPorts,
+  toggleTabVisibility,
+  hookSessions,
+  managedSessions,
+  recentToolUsages,
+  activityEvents,
+  sessionTokens,
+  activeTab,
+  setActiveTab,
+  visitedTabs,
+  tabActivatedAt,
+  enhancedCount,
+  visiblePortsCount,
+  dirtyRepos,
+  paused,
+  setPaused,
+  refresh,
+  message,
+  showMessage,
+  showHelp,
+  setShowHelp
+}: {
+  connected: boolean;
+  repos: import("./api/types").RepoStatus[];
+  agents: import("./api/types").AgentProcess[];
+  ports: import("./api/types").ListeningPort[];
+  hiddenTabs: Set<"ports">;
+  hiddenPorts: Set<number>;
+  toggleHidePort: (port: number) => void;
+  bulkHidePorts: (ports: number[]) => void;
+  clearHiddenPorts: () => void;
+  toggleTabVisibility: (tab: "ports") => void;
+  hookSessions: import("./api/types").HookSession[];
+  managedSessions: import("./api/types").ManagedSession[];
+  recentToolUsages: import("./api/types").ToolUsage[];
+  activityEvents: import("./api/types").ActivityEvent[];
+  sessionTokens: Record<
+    string,
+    { inputTokens: number; outputTokens: number; turnCount: number }
+  >;
+  activeTab: Tab;
+  setActiveTab: (tab: Tab) => void;
+  visitedTabs: Set<Tab>;
+  tabActivatedAt: Record<Tab, number>;
+  enhancedCount: number;
+  visiblePortsCount: number;
+  dirtyRepos: number;
+  paused: boolean;
+  setPaused: (p: boolean) => void;
+  refresh: () => void;
+  message: string | null;
+  showMessage: (m: string) => void;
+  showHelp: boolean;
+  setShowHelp: (s: boolean) => void;
+}) {
+  const { loadingTabs } = useLoading();
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-gray-100">
+      <Header
+        connected={connected}
+        repoCount={repos.length}
+        agentCount={agents.length}
+        loadingTabs={loadingTabs}
+      />
+
+      {/* Tab Navigation with Controls */}
+      <div className="container mx-auto px-4 pt-4">
+        <div className="flex items-center justify-between border-b border-gray-700">
+          <div
+            className="flex gap-1 overflow-x-auto scrollbar-hide"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            {/* Group 1: Monitoring */}
+            <button
+              onClick={() => setActiveTab("agents")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === "agents"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Agents
+              {(agents.length > 0 || enhancedCount > 0) && (
+                <span
+                  className="px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full"
+                  title={`${agents.length} running agent${agents.length !== 1 ? "s" : ""}${enhancedCount > 0 ? `, ${enhancedCount} enhanced` : ""}`}
+                >
+                  {agents.length}
+                  {enhancedCount > 0 && (
+                    <span className="text-green-300"> · {enhancedCount}</span>
+                  )}
+                </span>
+              )}
+            </button>
+            {!hiddenTabs.has("ports") && (
+              <button
+                onClick={() => setActiveTab("ports")}
+                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                  activeTab === "ports"
+                    ? "border-blue-500 text-blue-400"
+                    : "border-transparent text-gray-400 hover:text-gray-300"
+                }`}
               >
-                {/* Group 1: Monitoring */}
-                <button
-                  onClick={() => setActiveTab("agents")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                    activeTab === "agents"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Agents
-                  {(agents.length > 0 || enhancedCount > 0) && (
-                    <span
-                      className="px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full"
-                      title={`${agents.length} running agent${agents.length !== 1 ? "s" : ""}${enhancedCount > 0 ? `, ${enhancedCount} enhanced` : ""}`}
-                    >
-                      {agents.length}
-                      {enhancedCount > 0 && (
-                        <span className="text-green-300">
-                          {" "}
-                          · {enhancedCount}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </button>
-                {!hiddenTabs.has("ports") && (
-                  <button
-                    onClick={() => setActiveTab("ports")}
-                    className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                      activeTab === "ports"
-                        ? "border-blue-500 text-blue-400"
-                        : "border-transparent text-gray-400 hover:text-gray-300"
-                    }`}
+                Ports
+                {visiblePortsCount > 0 && (
+                  <span
+                    className="px-1.5 py-0.5 text-xs bg-purple-600 text-white rounded-full"
+                    title="Open ports from development servers"
                   >
-                    Ports
-                    {visiblePortsCount > 0 && (
-                      <span
-                        className="px-1.5 py-0.5 text-xs bg-purple-600 text-white rounded-full"
-                        title="Open ports from development servers"
-                      >
-                        {visiblePortsCount}
-                      </span>
-                    )}
-                  </button>
-                )}
-
-                {/* Separator */}
-                <div className="w-px bg-gray-600 mx-2 my-1 shrink-0" />
-
-                {/* Group 2: Analysis & Contribution */}
-                <button
-                  onClick={() => setActiveTab("projects")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                    activeTab === "projects"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Projects
-                  {dirtyRepos > 0 && (
-                    <span
-                      className="px-1.5 py-0.5 text-xs bg-yellow-600 text-white rounded-full"
-                      title="Repositories with uncommitted changes"
-                    >
-                      {dirtyRepos} dirty
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab("conversations")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                    activeTab === "conversations"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Conversations
-                </button>
-                <button
-                  onClick={() => setActiveTab("analytics")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                    activeTab === "analytics"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Analytics
-                </button>
-                <button
-                  onClick={() => setActiveTab("contrib")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                    activeTab === "contrib"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Share
-                </button>
-                <button
-                  onClick={() => setActiveTab("command")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                    activeTab === "command"
-                      ? "border-cyan-500 text-cyan-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Command
-                </button>
-
-                {/* Separator */}
-                <div className="w-px bg-gray-600 mx-2 my-1 shrink-0" />
-
-                {/* Group 3: Reference & Settings */}
-                <button
-                  onClick={() => setActiveTab("docs")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                    activeTab === "docs"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Docs
-                </button>
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                    activeTab === "settings"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Settings
-                </button>
-              </div>
-
-              {/* Controls */}
-              <div className="flex items-center gap-1.5 pb-2">
-                {message && (
-                  <span className="text-xs text-yellow-400 animate-pulse">
-                    {message}
+                    {visiblePortsCount}
                   </span>
                 )}
-                <button
-                  onClick={() => {
-                    refresh();
-                    showMessage("Refreshing...");
-                  }}
-                  className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
-                  title="Refresh (r)"
+              </button>
+            )}
+
+            {/* Separator */}
+            <div className="w-px bg-gray-600 mx-2 my-1 shrink-0" />
+
+            {/* Group 2: Analysis & Contribution */}
+            <button
+              onClick={() => setActiveTab("projects")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === "projects"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Projects
+              {dirtyRepos > 0 && (
+                <span
+                  className="px-1.5 py-0.5 text-xs bg-yellow-600 text-white rounded-full"
+                  title="Repositories with uncommitted changes"
                 >
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => {
-                    setPaused(!paused);
-                    showMessage(paused ? "Resumed" : "Paused");
-                  }}
-                  className={`p-1.5 rounded ${
-                    paused
-                      ? "bg-yellow-600 hover:bg-yellow-500 text-white"
-                      : "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                  }`}
-                  title="Pause/Resume (p)"
-                >
-                  {paused ? (
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  onClick={() => setShowHelp(true)}
-                  className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-xs font-bold"
-                  title="Keyboard shortcuts (?)"
-                >
-                  ?
-                </button>
-              </div>
-            </div>
+                  {dirtyRepos} dirty
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("conversations")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === "conversations"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Conversations
+            </button>
+            <button
+              onClick={() => setActiveTab("analytics")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === "analytics"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Analytics
+            </button>
+            <button
+              onClick={() => setActiveTab("contrib")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === "contrib"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Share
+            </button>
+            <button
+              onClick={() => setActiveTab("command")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === "command"
+                  ? "border-cyan-500 text-cyan-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Command
+            </button>
+
+            {/* Separator */}
+            <div className="w-px bg-gray-600 mx-2 my-1 shrink-0" />
+
+            {/* Group 3: Reference & Settings */}
+            <button
+              onClick={() => setActiveTab("docs")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === "docs"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Docs
+            </button>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === "settings"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Settings
+            </button>
           </div>
 
-          <main className="container mx-auto px-4 py-6">
-            {activeTab === "agents" && (
-              <AgentPane
-                agents={agents}
-                hookSessions={hookSessions}
-                managedSessions={managedSessions}
-                recentToolUsages={recentToolUsages}
-                activityEvents={activityEvents}
-                sessionTokens={sessionTokens}
-              />
+          {/* Controls */}
+          <div className="flex items-center gap-1.5 pb-2">
+            {message && (
+              <span className="text-xs text-yellow-400 animate-pulse">
+                {message}
+              </span>
             )}
-
-            {/* Heavy panes: lazy load on first visit, keep mounted to preserve state */}
-            {visitedTabs.has("projects") && (
-              <div className={activeTab === "projects" ? "" : "hidden"}>
-                <ProjectsPane
-                  repos={repos}
-                  isActive={activeTab === "projects"}
-                  activatedAt={tabActivatedAt.projects}
-                />
-              </div>
-            )}
-
-            {visitedTabs.has("conversations") && (
-              <div className={activeTab === "conversations" ? "" : "hidden"}>
-                <ConversationsPane
-                  onNavigateToTab={(tab) => setActiveTab(tab as Tab)}
-                  isActive={activeTab === "conversations"}
-                  activatedAt={tabActivatedAt.conversations}
-                />
-              </div>
-            )}
-
-            {visitedTabs.has("analytics") && (
-              <div className={activeTab === "analytics" ? "" : "hidden"}>
-                <AnalyticsPane
-                  onNavigateToConversations={() =>
-                    setActiveTab("conversations")
-                  }
-                  isActive={activeTab === "analytics"}
-                  activatedAt={tabActivatedAt.analytics}
-                  hookSessions={hookSessions}
-                  recentToolUsages={recentToolUsages}
-                  sessionTokens={sessionTokens}
-                />
-              </div>
-            )}
-
-            {activeTab === "ports" && (
-              <PortsPane
-                ports={ports}
-                hiddenPorts={hiddenPorts}
-                onToggleHide={toggleHidePort}
-                onBulkHide={bulkHidePorts}
-                onClearHidden={clearHiddenPorts}
-              />
-            )}
-
-            {activeTab === "contrib" && (
-              <ContribPane
-                onNavigateToTab={(tab) => setActiveTab(tab as Tab)}
-              />
-            )}
-
-            {activeTab === "command" && (
-              <CommandCenterPane managedSessions={managedSessions} />
-            )}
-
-            {activeTab === "docs" && <DocumentationPane />}
-
-            {activeTab === "settings" && (
-              <SettingsPane
-                hiddenTabs={hiddenTabs}
-                onToggleTabVisibility={toggleTabVisibility}
-              />
-            )}
-          </main>
-
-          {/* Footer */}
-          <footer className="container mx-auto px-4 py-6 mt-8 border-t border-gray-800">
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <div className="flex items-center gap-4">
-                <span>
-                  Agentwatch - Monitor & share AI coding agent activity
-                </span>
-              </div>
-              <div className="flex items-center gap-4">
-                <a
-                  href="https://github.com/nickmvincent/agentwatch/blob/main/docs/data-sources.md"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-gray-300"
-                >
-                  Data & Privacy
-                </a>
-                <a
-                  href="https://github.com/nickmvincent/agentwatch"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-gray-300"
-                >
-                  GitHub
-                </a>
-                <a
-                  href="https://github.com/nickmvincent/agentwatch/issues"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-gray-300"
-                >
-                  Report Issue
-                </a>
-              </div>
-            </div>
-          </footer>
-
-          {/* Help Modal */}
-          {showHelp && (
-            <div
-              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-              onClick={() => setShowHelp(false)}
+            <button
+              onClick={() => {
+                refresh();
+                showMessage("Refreshing...");
+              }}
+              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+              title="Refresh (r)"
             >
-              <div
-                className="bg-gray-800 rounded-lg border border-gray-700 p-6 max-w-md"
-                onClick={(e) => e.stopPropagation()}
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <h2 className="text-lg font-semibold text-cyan-400 mb-4">
-                  Keyboard Shortcuts
-                </h2>
-                <div className="space-y-2 text-sm">
-                  <div className="text-gray-400 font-medium mt-2">
-                    Navigation
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-400">1-8</span>
-                    <span className="text-gray-300">Switch tabs</span>
-                  </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                setPaused(!paused);
+                showMessage(paused ? "Resumed" : "Paused");
+              }}
+              className={`p-1.5 rounded ${
+                paused
+                  ? "bg-yellow-600 hover:bg-yellow-500 text-white"
+                  : "bg-gray-700 hover:bg-gray-600 text-gray-300"
+              }`}
+              title="Pause/Resume (p)"
+            >
+              {paused ? (
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={() => setShowHelp(true)}
+              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-xs font-bold"
+              title="Keyboard shortcuts (?)"
+            >
+              ?
+            </button>
+          </div>
+        </div>
+      </div>
 
-                  <div className="text-gray-400 font-medium mt-4">Actions</div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-400">r</span>
-                    <span className="text-gray-300">Refresh data</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-400">p</span>
-                    <span className="text-gray-300">Pause/resume updates</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-400">?</span>
-                    <span className="text-gray-300">Toggle this help</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-400">Esc</span>
-                    <span className="text-gray-300">Close dialogs</span>
-                  </div>
-                </div>
-                <div className="mt-6 text-center">
-                  <button
-                    onClick={() => setShowHelp(false)}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
-                  >
-                    Close
-                  </button>
-                </div>
+      <main className="container mx-auto px-4 py-6">
+        {activeTab === "agents" && (
+          <AgentPane
+            agents={agents}
+            hookSessions={hookSessions}
+            managedSessions={managedSessions}
+            recentToolUsages={recentToolUsages}
+            activityEvents={activityEvents}
+            sessionTokens={sessionTokens}
+          />
+        )}
+
+        {/* Heavy panes: lazy load on first visit, keep mounted to preserve state */}
+        {visitedTabs.has("projects") && (
+          <div className={activeTab === "projects" ? "" : "hidden"}>
+            <ProjectsPane
+              repos={repos}
+              isActive={activeTab === "projects"}
+              activatedAt={tabActivatedAt.projects}
+            />
+          </div>
+        )}
+
+        {visitedTabs.has("conversations") && (
+          <div className={activeTab === "conversations" ? "" : "hidden"}>
+            <ConversationsPane
+              onNavigateToTab={(tab) => setActiveTab(tab as Tab)}
+              isActive={activeTab === "conversations"}
+              activatedAt={tabActivatedAt.conversations}
+            />
+          </div>
+        )}
+
+        {visitedTabs.has("analytics") && (
+          <div className={activeTab === "analytics" ? "" : "hidden"}>
+            <AnalyticsPane
+              onNavigateToConversations={() => setActiveTab("conversations")}
+              isActive={activeTab === "analytics"}
+              activatedAt={tabActivatedAt.analytics}
+              hookSessions={hookSessions}
+              recentToolUsages={recentToolUsages}
+              sessionTokens={sessionTokens}
+            />
+          </div>
+        )}
+
+        {activeTab === "ports" && (
+          <PortsPane
+            ports={ports}
+            hiddenPorts={hiddenPorts}
+            onToggleHide={toggleHidePort}
+            onBulkHide={bulkHidePorts}
+            onClearHidden={clearHiddenPorts}
+          />
+        )}
+
+        {activeTab === "contrib" && (
+          <ContribPane onNavigateToTab={(tab) => setActiveTab(tab as Tab)} />
+        )}
+
+        {activeTab === "command" && (
+          <CommandCenterPane managedSessions={managedSessions} />
+        )}
+
+        {activeTab === "docs" && <DocumentationPane />}
+
+        {activeTab === "settings" && (
+          <SettingsPane
+            hiddenTabs={hiddenTabs}
+            onToggleTabVisibility={toggleTabVisibility}
+          />
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="container mx-auto px-4 py-6 mt-8 border-t border-gray-800">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center gap-4">
+            <span>Agentwatch - Monitor & share AI coding agent activity</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://github.com/nickmvincent/agentwatch/blob/main/docs/data-sources.md"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-gray-300"
+            >
+              Data & Privacy
+            </a>
+            <a
+              href="https://github.com/nickmvincent/agentwatch"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-gray-300"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://github.com/nickmvincent/agentwatch/issues"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-gray-300"
+            >
+              Report Issue
+            </a>
+          </div>
+        </div>
+      </footer>
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowHelp(false)}
+        >
+          <div
+            className="bg-gray-800 rounded-lg border border-gray-700 p-6 max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-cyan-400 mb-4">
+              Keyboard Shortcuts
+            </h2>
+            <div className="space-y-2 text-sm">
+              <div className="text-gray-400 font-medium mt-2">Navigation</div>
+              <div className="flex justify-between">
+                <span className="text-yellow-400">1-8</span>
+                <span className="text-gray-300">Switch tabs</span>
+              </div>
+
+              <div className="text-gray-400 font-medium mt-4">Actions</div>
+              <div className="flex justify-between">
+                <span className="text-yellow-400">r</span>
+                <span className="text-gray-300">Refresh data</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-yellow-400">p</span>
+                <span className="text-gray-300">Pause/resume updates</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-yellow-400">?</span>
+                <span className="text-gray-300">Toggle this help</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-yellow-400">Esc</span>
+                <span className="text-gray-300">Close dialogs</span>
               </div>
             </div>
-          )}
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setShowHelp(false)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
-      </ConversationProvider>
-    </DataProvider>
+      )}
+    </div>
   );
 }
 

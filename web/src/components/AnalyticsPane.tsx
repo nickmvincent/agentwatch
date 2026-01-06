@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLoading } from "../context/LoadingContext";
 import {
   fetchAnalyticsByProject,
   fetchDailyStats,
@@ -389,10 +390,17 @@ export function AnalyticsPane({
 }: AnalyticsPaneProps) {
   const { setFilter } = useConversations();
   const { getConfig, getAnalytics } = useData();
+  const { setLoading: setGlobalLoading } = useLoading();
   const [loading, setLoading] = useState(true);
   const lastLoadedAt = useRef(0);
   const [transcriptDays, setTranscriptDays] = useState<number>(30);
   const [loadErrors, setLoadErrors] = useState<LoadError[]>([]);
+
+  // Report loading state to global context
+  useEffect(() => {
+    setGlobalLoading("analytics", loading);
+    return () => setGlobalLoading("analytics", false);
+  }, [loading, setGlobalLoading]);
 
   // All data loaded upfront
   const [dashboard, setDashboard] = useState<AnalyticsDashboard | null>(null);

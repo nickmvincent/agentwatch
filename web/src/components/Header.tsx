@@ -2,9 +2,15 @@ interface HeaderProps {
   connected: boolean;
   repoCount: number;
   agentCount: number;
+  loadingTabs?: string[];
 }
 
-export function Header({ connected, repoCount, agentCount }: HeaderProps) {
+export function Header({
+  connected,
+  repoCount,
+  agentCount,
+  loadingTabs = []
+}: HeaderProps) {
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-4 py-3">
       <div className="flex items-center justify-between">
@@ -19,6 +25,12 @@ export function Header({ connected, repoCount, agentCount }: HeaderProps) {
           >
             {connected ? "Connected" : "Disconnected"}
           </span>
+          {loadingTabs.length > 0 && (
+            <span className="px-2 py-1 rounded text-xs bg-blue-900/50 text-blue-300 flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+              Loading {loadingTabs.join(", ")}...
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-4 text-gray-400 text-sm">
           <span>{repoCount} repos</span>
