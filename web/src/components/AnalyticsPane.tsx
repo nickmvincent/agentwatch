@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   fetchAnalyticsByProject,
-  fetchAnalyticsCombined,
-  fetchConfig,
   fetchDailyStats,
   fetchToolStats
 } from "../api/client";
@@ -23,6 +21,7 @@ import {
   type ConversationFilter,
   useConversations
 } from "../context/ConversationContext";
+import { useData } from "../context/DataProvider";
 
 interface SessionTokens {
   inputTokens: number;
@@ -382,6 +381,7 @@ export function AnalyticsPane({
   sessionTokens: _sessionTokens = {}
 }: AnalyticsPaneProps) {
   const { setFilter } = useConversations();
+  const { getConfig, getAnalytics } = useData();
   const [loading, setLoading] = useState(true);
   const [transcriptDays, setTranscriptDays] = useState<number>(30);
   const [loadErrors, setLoadErrors] = useState<LoadError[]>([]);
@@ -409,15 +409,15 @@ export function AnalyticsPane({
   const [projectAnalytics, setProjectAnalytics] =
     useState<AnalyticsByProjectResult | null>(null);
 
-  // Load config for transcript days
+  // Load config for transcript days (cached via DataProvider)
   useEffect(() => {
-    fetchConfig()
+    getConfig()
       .then((config) => {
         const days = config.conversations?.transcript_days ?? 30;
         setTranscriptDays(days);
       })
       .catch(console.error);
-  }, []);
+  }, [getConfig]);
 
   // Load ALL data upfront
   useEffect(() => {
@@ -428,9 +428,9 @@ export function AnalyticsPane({
     setLoading(true);
     setLoadErrors([]);
     try {
-      // Use combined endpoint for most analytics data (reduces 9 calls to 4)
+      // Use combined endpoint for most analytics data (cached via DataProvider)
       const results = await Promise.allSettled([
-        fetchAnalyticsCombined(transcriptDays), // Combined: dashboard, success_trend, cost_by_type, tool_retries, quality_distribution, loops
+        getAnalytics(transcriptDays), // Combined: dashboard, success_trend, cost_by_type, tool_retries, quality_distribution, loops
         fetchToolStats(), // Separate: from hook store
         fetchDailyStats(transcriptDays), // Separate: from hook store
         fetchAnalyticsByProject(transcriptDays) // Separate: uses correlation

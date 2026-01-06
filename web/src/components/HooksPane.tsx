@@ -11,6 +11,7 @@ import type {
   ToolStats,
   ToolUsage
 } from "../api/types";
+import { useData } from "../context/DataProvider";
 import { HOOK_DESCRIPTIONS, HookTypeInfo } from "./ui/InfoTooltip";
 
 interface SessionTokens {
@@ -49,6 +50,7 @@ export function HooksPane({
   activityEvents,
   sessionTokens
 }: HooksPaneProps) {
+  const { getConfig } = useData();
   const [toolStats, setToolStats] = useState<ToolStats[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
   const [showHistorical, setShowHistorical] = useState(false);
@@ -70,7 +72,7 @@ export function HooksPane({
     fetchDailyStats();
     fetchEnhancementsConfig();
     fetchNotificationsConfig();
-  }, []);
+  }, [getConfig]);
 
   // Auto-expand historical section if no live activity and stats exist
   useEffect(() => {
@@ -213,12 +215,9 @@ export function HooksPane({
 
   const fetchNotificationsConfig = async () => {
     try {
-      const res = await fetch("/api/config");
-      if (res.ok) {
-        const config = await res.json();
-        if (config.notifications) {
-          setNotificationsConfig(config.notifications);
-        }
+      const config = await getConfig();
+      if (config.notifications) {
+        setNotificationsConfig(config.notifications);
       }
     } catch {
       // Ignore

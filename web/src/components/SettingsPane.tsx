@@ -5,7 +5,6 @@ import {
   createProject,
   deleteProject,
   fetchClaudeSettings,
-  fetchConfig,
   fetchHookEnhancements,
   fetchProjects,
   fetchQualityConfig,
@@ -24,6 +23,7 @@ import type {
   Project,
   QualityConfigResult
 } from "../api/types";
+import { useData } from "../context/DataProvider";
 import { AuditLogPane } from "./AuditLogPane";
 import { ReferencePane } from "./ReferencePane";
 import { Toast } from "./Toast";
@@ -40,6 +40,7 @@ export function SettingsPane({
   hiddenTabs,
   onToggleTabVisibility
 }: SettingsPaneProps) {
+  const { getConfig, invalidate } = useData();
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +51,14 @@ export function SettingsPane({
     loadConfig();
   }, []);
 
-  const loadConfig = async () => {
+  const loadConfig = async (invalidateFirst = false) => {
+    if (invalidateFirst) {
+      invalidate("/api/config");
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchConfig();
+      const data = await getConfig();
       setConfig(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load config");
@@ -82,8 +86,8 @@ export function SettingsPane({
       const result = await updateConfig(update);
       if (result.success) {
         setSaveMessage(`Updated: ${result.updates.join(", ")}`);
-        // Reload config to get fresh state
-        await loadConfig();
+        // Reload config with fresh data (invalidate cache first)
+        await loadConfig(true);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
@@ -110,7 +114,7 @@ export function SettingsPane({
           {error}
         </div>
         <button
-          onClick={loadConfig}
+          onClick={() => loadConfig()}
           className="mt-4 px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
         >
           Retry
@@ -245,7 +249,7 @@ export function SettingsPane({
               });
               if (result.success) {
                 setSaveMessage(`Updated: ${result.updates.join(", ")}`);
-                await loadConfig();
+                await loadConfig(true);
               }
             } catch (e) {
               setError(e instanceof Error ? e.message : "Failed to save");
@@ -263,7 +267,7 @@ export function SettingsPane({
               });
               if (result.success) {
                 setSaveMessage(`Updated: ${result.updates.join(", ")}`);
-                await loadConfig();
+                await loadConfig(true);
               }
             } catch (e) {
               setError(e instanceof Error ? e.message : "Failed to save");
@@ -1855,7 +1859,7 @@ function HookEnhancementsSection() {
           {error}
         </div>
         <button
-          onClick={loadConfig}
+          onClick={() => loadConfig()}
           className="mt-4 px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
         >
           Retry

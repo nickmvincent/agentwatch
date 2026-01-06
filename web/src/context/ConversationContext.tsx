@@ -11,11 +11,11 @@ import {
   deleteConversationMetadata as apiDeleteConversationMetadata,
   updateConversationMetadata as apiUpdateConversationMetadata,
   fetchAllConversationMetadata,
-  fetchConfig,
   fetchConversations,
   fetchEnrichments,
   setSessionAnnotation
 } from "../api/client";
+import { useData } from "./DataProvider";
 import type {
   Conversation,
   ConversationMetadata,
@@ -96,6 +96,8 @@ interface ConversationProviderProps {
 }
 
 export function ConversationProvider({ children }: ConversationProviderProps) {
+  const { getConfig } = useData();
+
   // Core state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationStats, setConversationStats] =
@@ -146,8 +148,8 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
         setLoading(true);
         setError(null);
 
-        // Load config first to get transcript_days
-        const config = await fetchConfig();
+        // Load config first to get transcript_days (cached via DataProvider)
+        const config = await getConfig();
         const days = config.conversations?.transcript_days ?? 30;
         setTranscriptDays(days);
 
@@ -173,7 +175,7 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
       }
     }
     init();
-  }, []);
+  }, [getConfig]);
 
   // Refresh conversations
   const refreshConversations = useCallback(async () => {
@@ -181,7 +183,8 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
       setLoading(true);
       setError(null);
 
-      const config = await fetchConfig();
+      // Use cached config (refreshes within TTL)
+      const config = await getConfig();
       const days = config.conversations?.transcript_days ?? 30;
       setTranscriptDays(days);
 
@@ -202,7 +205,7 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getConfig]);
 
   // Update conversation name
   const updateConversationName = useCallback(
