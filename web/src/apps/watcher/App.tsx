@@ -1,10 +1,11 @@
 /**
  * Watcher App - Streamlined real-time monitoring dashboard.
  *
- * Tabs: Agents | Repos | Ports | Command | Settings
+ * Tabs: Agents | Repos | Ports | Activity | Command | Settings
  */
 
 import { useEffect, useState } from "react";
+import { ActivityFeedPane } from "../../components/ActivityFeedPane";
 import { AgentPane } from "../../components/AgentPane";
 import { CommandCenterPane } from "../../components/CommandCenterPane";
 import { PortsPane } from "../../components/PortsPane";
@@ -17,7 +18,7 @@ import { LoadingProvider } from "../../context/LoadingContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { WatcherHeader } from "./WatcherHeader";
 
-type Tab = "agents" | "repos" | "ports" | "command" | "settings";
+type Tab = "agents" | "repos" | "ports" | "activity" | "command" | "settings";
 type HideableTab = "hooks" | "repos" | "ports";
 
 function WatcherApp() {
@@ -62,9 +63,12 @@ function WatcherApp() {
           setActiveTab("ports");
           break;
         case "4":
-          setActiveTab("command");
+          setActiveTab("activity");
           break;
         case "5":
+          setActiveTab("command");
+          break;
+        case "6":
           setActiveTab("settings");
           break;
         case "r":
@@ -85,6 +89,7 @@ function WatcherApp() {
     { id: "agents", label: "Agents", count: agents.length },
     { id: "repos", label: "Repos", count: repos.length },
     { id: "ports", label: "Ports", count: ports.length },
+    { id: "activity", label: "Activity", count: activityEvents.length },
     { id: "command", label: "Command", count: managedSessions.length },
     { id: "settings", label: "Settings" }
   ];
@@ -154,6 +159,9 @@ function WatcherApp() {
               });
             }}
           />
+        )}
+        {activeTab === "activity" && (
+          <ActivityFeedPane activityEvents={activityEvents} />
         )}
         {activeTab === "command" && (
           <CommandCenterPane managedSessions={managedSessions} />
