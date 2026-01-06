@@ -235,61 +235,6 @@ export function HooksPane({
     return `${(ms / 1000).toFixed(1)}s`;
   };
 
-  // Get a summary string from tool input based on tool type
-  const getToolInputSummary = (
-    toolName: string,
-    input: Record<string, unknown>
-  ): string | null => {
-    switch (toolName) {
-      case "Read":
-        return input.file_path
-          ? String(input.file_path).split("/").slice(-2).join("/")
-          : null;
-      case "Write":
-      case "Edit":
-        return input.file_path
-          ? String(input.file_path).split("/").slice(-2).join("/")
-          : null;
-      case "Bash":
-        if (input.command) {
-          const cmd = String(input.command);
-          return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd;
-        }
-        return null;
-      case "Glob":
-        return input.pattern ? String(input.pattern) : null;
-      case "Grep":
-        return input.pattern ? `/${input.pattern}/` : null;
-      case "Task":
-        return input.description ? String(input.description) : null;
-      case "WebFetch":
-      case "WebSearch":
-        return input.url
-          ? String(input.url).slice(0, 50)
-          : input.query
-            ? String(input.query)
-            : null;
-      case "TodoWrite":
-        return input.todos
-          ? `${(input.todos as unknown[]).length} items`
-          : null;
-      default:
-        // For unknown tools, try common field names
-        if (input.file_path)
-          return String(input.file_path).split("/").slice(-2).join("/");
-        if (input.path)
-          return String(input.path).split("/").slice(-2).join("/");
-        if (input.command) return String(input.command).slice(0, 50);
-        return null;
-    }
-  };
-
-  // Get project name from cwd
-  const getProjectName = (cwd: string): string => {
-    const parts = cwd.split("/").filter(Boolean);
-    return parts.slice(-1)[0] || cwd;
-  };
-
   // Build a map of session_id to session info for quick lookup
   const sessionMap = useMemo(() => {
     const map = new Map<string, HookSession>();

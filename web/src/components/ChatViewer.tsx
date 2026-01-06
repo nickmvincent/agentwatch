@@ -12,16 +12,6 @@ import {
 } from "../api/client";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
-// Copy to clipboard helper
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 interface ChatViewerProps {
   transcript: ParsedLocalTranscript;
   onClose?: () => void;
@@ -50,7 +40,6 @@ export function ChatViewer({
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(
     new Set()
   );
-  const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
   // Privacy flags state
   const [flags, setFlags] = useState<PrivacyFlag[]>([]);
@@ -63,15 +52,6 @@ export function ChatViewer({
   const [flagExclude, setFlagExclude] = useState(false);
 
   const effectiveSessionId = sessionId || transcript.id;
-
-  // Handle copy feedback
-  const handleCopyPath = useCallback(async (path: string, label: string) => {
-    const success = await copyToClipboard(path);
-    if (success) {
-      setCopiedPath(label);
-      setTimeout(() => setCopiedPath(null), 2000);
-    }
-  }, []);
 
   // Load flags on mount
   useEffect(() => {
