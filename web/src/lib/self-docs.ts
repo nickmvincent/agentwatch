@@ -1,6 +1,5 @@
 /**
  * Self-documentation registry for UI components.
- * Components can look up their documentation by componentId.
  */
 
 interface SelfDocEntry {
