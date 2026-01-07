@@ -153,3 +153,5 @@ Build order matters:
 See [STATUS.md](./STATUS.md) for current status, feature checklist, and implementation roadmap.
 
 See [PRINCIPLES.md](./PRINCIPLES.md) for design principles guiding development.
+
+See [VISION.md](./VISION.md) for long-term vision and data contribution goals.
