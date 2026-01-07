@@ -884,8 +884,8 @@ export function AgentDetailModal({
                   <div className="text-gray-500 text-sm">
                     Loading annotation data...
                   </div>
-                ) : linkedConversation.hook_session?.session_id ||
-                  linkedConversation.correlation_id ||
+                ) : linkedConversation?.hook_session?.session_id ||
+                  linkedConversation?.correlation_id ||
                   hookSession?.session_id ? (
                   <ConversationAnnotationPanel
                     sessionId={annotationSessionId || ""}

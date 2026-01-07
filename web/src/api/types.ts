@@ -159,8 +159,10 @@ export type WebSocketMessage =
   | { type: "agents_update"; agents: AgentProcess[] }
   | { type: "hook_session_start"; session: HookSession }
   | { type: "hook_session_end"; session: HookSession }
+  | { type: "hook_session_update"; session: HookSession }
   | { type: "hook_pre_tool_use"; usage: ToolUsage }
   | { type: "hook_post_tool_use"; usage: ToolUsage }
+  | { type: "hook_tool_complete"; usage: ToolUsage }
   | { type: "hook_notification"; session_id: string; notification_type: string }
   | {
       type: "hook_permission_request";

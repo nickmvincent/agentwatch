@@ -121,7 +121,16 @@ export interface ConfigData {
     };
     notification_hub?: {
       enabled: boolean;
-      desktop: boolean;
+      desktop?: {
+        enabled?: boolean;
+        format?: {
+          show_project_name?: boolean;
+          show_session_id?: boolean;
+          show_tool_details?: boolean;
+          show_stats?: boolean;
+          show_cwd?: boolean;
+        };
+      };
       webhook?: string;
     };
     rules?: {

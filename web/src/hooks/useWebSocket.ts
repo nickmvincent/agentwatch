@@ -56,6 +56,7 @@ export function useWebSocket(
   const pausedRef = useRef(paused);
   const eventIdRef = useRef(0);
   const hiddenTabsRef = useRef(hiddenTabs);
+  const hookSessionsRef = useRef(hookSessions);
   const includeManagedSessionsRef = useRef(
     options?.includeManagedSessions ?? true
   );
@@ -64,6 +65,11 @@ export function useWebSocket(
   useEffect(() => {
     hiddenTabsRef.current = hiddenTabs;
   }, [hiddenTabs]);
+
+  // Keep hookSessionsRef in sync
+  useEffect(() => {
+    hookSessionsRef.current = hookSessions;
+  }, [hookSessions]);
 
   useEffect(() => {
     includeManagedSessionsRef.current = options?.includeManagedSessions ?? true;
@@ -172,6 +178,45 @@ export function useWebSocket(
               });
             }
             break;
+          // Generic session update - determine start vs end from end_time
+          case "hook_session_update":
+            if (!hiddenTabsRef.current.has("hooks")) {
+              const session = message.session;
+              const isNewSession = !hookSessionsRef.current.some(
+                (s) => s.session_id === session.session_id
+              );
+              const isEnded = Boolean(session.end_time);
+
+              if (isNewSession && !isEnded) {
+                // New session starting
+                setHookSessions((prev) => [session, ...prev]);
+                addActivityEvent("session_start", session.session_id, {
+                  cwd: session.cwd,
+                  source: session.source
+                });
+              } else if (isEnded) {
+                // Session ended
+                setHookSessions((prev) =>
+                  prev.map((s) =>
+                    s.session_id === session.session_id ? session : s
+                  )
+                );
+                // Only add end event if we tracked this session
+                if (!isNewSession) {
+                  addActivityEvent("session_end", session.session_id, {
+                    tool_count: session.tool_count
+                  });
+                }
+              } else {
+                // Session update (awaiting user, tokens, etc.)
+                setHookSessions((prev) =>
+                  prev.map((s) =>
+                    s.session_id === session.session_id ? session : s
+                  )
+                );
+              }
+            }
+            break;
           case "hook_pre_tool_use":
             if (!hiddenTabsRef.current.has("hooks")) {
               setRecentToolUsages((prev) => {
@@ -214,6 +259,49 @@ export function useWebSocket(
                 success: message.usage.success,
                 duration_ms: message.usage.duration_ms
               });
+            }
+            break;
+          // Generic tool complete - handles both pre and post
+          case "hook_tool_complete":
+            if (!hiddenTabsRef.current.has("hooks")) {
+              const usage = message.usage;
+              const hasDuration = usage.duration_ms !== undefined;
+
+              setRecentToolUsages((prev) => {
+                const filtered = prev.filter(
+                  (u) => u.tool_use_id !== usage.tool_use_id
+                );
+                return [usage, ...filtered].slice(0, 100);
+              });
+
+              if (hasDuration) {
+                // Post-tool-use (completed)
+                if (usage.session_id) {
+                  setHookSessions((prev) =>
+                    prev.map((s) =>
+                      s.session_id === usage.session_id
+                        ? {
+                            ...s,
+                            tool_count: s.tool_count + 1,
+                            last_activity: Date.now()
+                          }
+                        : s
+                    )
+                  );
+                }
+                addActivityEvent("tool_end", usage.session_id, {
+                  tool_name: usage.tool_name,
+                  tool_use_id: usage.tool_use_id,
+                  success: usage.success,
+                  duration_ms: usage.duration_ms
+                });
+              } else {
+                // Pre-tool-use (starting)
+                addActivityEvent("tool_start", usage.session_id, {
+                  tool_name: usage.tool_name,
+                  tool_use_id: usage.tool_use_id
+                });
+              }
             }
             break;
 

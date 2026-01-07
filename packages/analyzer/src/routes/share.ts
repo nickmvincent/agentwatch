@@ -47,7 +47,7 @@ export function registerShareRoutes(app: Hono): void {
   app.get("/api/share/status", async (c) => {
     const settings = loadContributorSettings();
     return c.json({
-      configured: true,
+      configured: !!(settings.hfToken || settings.hfDataset),
       authenticated: !!settings.hfToken,
       dataset_url: settings.hfDataset
         ? `https://huggingface.co/datasets/${settings.hfDataset}`
