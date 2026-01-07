@@ -5,13 +5,44 @@ import {
   saveRawConfig,
   updateClaudeSettings
 } from "../api/client";
-import type { ClaudeSettingsResponse } from "../api/types";
+import type { ClaudeSettings, ClaudeSettingsHookGroup, ClaudeSettingsResponse } from "../api/types";
 import { HookEnhancementsSection } from "./HookEnhancementsSection";
 import {
   SelfDocumentingSection,
   setSelfDocumentingPreference,
   useSelfDocumentingVisible
 } from "./ui/SelfDocumentingSection";
+
+// Standard AgentWatch hook configuration
+const AGENTWATCH_HOOK_COMMAND = "curl -s -X POST http://localhost:8420/api/hooks";
+const AGENTWATCH_HOOK_TYPES = [
+  "SessionStart",
+  "SessionEnd",
+  "PreToolUse",
+  "PostToolUse",
+  "Stop",
+  "Notification",
+  "PermissionRequest",
+  "UserPromptSubmit"
+] as const;
+
+type HookType = typeof AGENTWATCH_HOOK_TYPES[number];
+
+function createAgentWatchHookGroup(hookType: string): ClaudeSettingsHookGroup {
+  return {
+    hooks: [{
+      type: "command",
+      command: `${AGENTWATCH_HOOK_COMMAND}/${hookType.toLowerCase().replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase()} -H 'Content-Type: application/json' -d '$CLAUDE_HOOK_PAYLOAD'`
+    }]
+  };
+}
+
+function hasAgentWatchHook(groups: ClaudeSettingsHookGroup[] | undefined): boolean {
+  if (!groups) return false;
+  return groups.some(g =>
+    g.hooks?.some(h => h.command?.includes("agentwatch") || h.command?.includes("localhost:8420"))
+  );
+}
 
 export function WatcherSettingsPane() {
   const [content, setContent] = useState("");
@@ -29,6 +60,8 @@ export function WatcherSettingsPane() {
   const [claudeSettings, setClaudeSettings] =
     useState<ClaudeSettingsResponse | null>(null);
   const [claudeError, setClaudeError] = useState<string | null>(null);
+  const [hookUpdating, setHookUpdating] = useState<string | null>(null);
+  const [hookMessage, setHookMessage] = useState<string | null>(null);
 
   const selfDocs = {
     title: "Watcher Settings",
@@ -77,6 +110,119 @@ export function WatcherSettingsPane() {
         err instanceof Error ? err.message : "Failed to load Claude settings"
       );
     }
+  };
+
+  // Toggle a single AgentWatch hook type
+  const toggleHook = async (hookType: HookType) => {
+    if (!claudeSettings?.settings) return;
+
+    setHookUpdating(hookType);
+    setHookMessage(null);
+
+    try {
+      const currentHooks = claudeSettings.settings.hooks || {};
+      const currentGroups = currentHooks[hookType] || [];
+      const hasAW = hasAgentWatchHook(currentGroups);
+
+      let newGroups: ClaudeSettingsHookGroup[];
+      if (hasAW) {
+        // Remove AgentWatch hooks
+        newGroups = currentGroups.filter(g =>
+          !g.hooks?.some(h => h.command?.includes("agentwatch") || h.command?.includes("localhost:8420"))
+        );
+      } else {
+        // Add AgentWatch hook
+        newGroups = [...currentGroups, createAgentWatchHookGroup(hookType)];
+      }
+
+      const updates: Partial<ClaudeSettings> = {
+        hooks: {
+          ...currentHooks,
+          [hookType]: newGroups.length > 0 ? newGroups : undefined
+        }
+      };
+
+      await updateClaudeSettings(updates);
+      await loadClaudeSettings();
+      setHookMessage(`${hasAW ? "Removed" : "Added"} AgentWatch ${hookType} hook`);
+    } catch (err) {
+      setHookMessage(
+        `Failed to update hook: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    } finally {
+      setHookUpdating(null);
+    }
+  };
+
+  // Install all AgentWatch hooks at once
+  const installAllHooks = async () => {
+    if (!claudeSettings?.settings) return;
+
+    setHookUpdating("all");
+    setHookMessage(null);
+
+    try {
+      const currentHooks = claudeSettings.settings.hooks || {};
+      const newHooks: ClaudeSettings["hooks"] = { ...currentHooks };
+
+      for (const hookType of AGENTWATCH_HOOK_TYPES) {
+        const currentGroups = currentHooks[hookType] || [];
+        if (!hasAgentWatchHook(currentGroups)) {
+          newHooks[hookType] = [...currentGroups, createAgentWatchHookGroup(hookType)];
+        }
+      }
+
+      await updateClaudeSettings({ hooks: newHooks });
+      await loadClaudeSettings();
+      setHookMessage("Installed all AgentWatch hooks");
+    } catch (err) {
+      setHookMessage(
+        `Failed to install hooks: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    } finally {
+      setHookUpdating(null);
+    }
+  };
+
+  // Remove all AgentWatch hooks at once
+  const removeAllHooks = async () => {
+    if (!claudeSettings?.settings) return;
+
+    setHookUpdating("all");
+    setHookMessage(null);
+
+    try {
+      const currentHooks = claudeSettings.settings.hooks || {};
+      const newHooks: ClaudeSettings["hooks"] = {};
+
+      for (const hookType of AGENTWATCH_HOOK_TYPES) {
+        const currentGroups = currentHooks[hookType] || [];
+        const filtered = currentGroups.filter(g =>
+          !g.hooks?.some(h => h.command?.includes("agentwatch") || h.command?.includes("localhost:8420"))
+        );
+        if (filtered.length > 0) {
+          newHooks[hookType] = filtered;
+        }
+      }
+
+      await updateClaudeSettings({ hooks: newHooks });
+      await loadClaudeSettings();
+      setHookMessage("Removed all AgentWatch hooks");
+    } catch (err) {
+      setHookMessage(
+        `Failed to remove hooks: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    } finally {
+      setHookUpdating(null);
+    }
+  };
+
+  // Count how many AgentWatch hooks are installed
+  const countAgentWatchHooks = (): number => {
+    if (!claudeSettings?.settings?.hooks) return 0;
+    return AGENTWATCH_HOOK_TYPES.filter(hookType =>
+      hasAgentWatchHook(claudeSettings.settings?.hooks?.[hookType])
+    ).length;
   };
 
   useEffect(() => {
@@ -194,69 +340,180 @@ export function WatcherSettingsPane() {
         </div>
       </div>
 
-      {/* Claude Code Permissions */}
+      {/* Claude Code Settings */}
       <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-        <h2 className="text-lg font-semibold text-white mb-2">
-          Claude Code Permissions
-        </h2>
-        <p className="text-xs text-gray-500 mb-3">
-          From <code className="bg-gray-700 px-1 rounded">~/.claude/settings.json</code>
-        </p>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              Claude Code Settings
+            </h2>
+            <p className="text-xs text-gray-500">
+              From <code className="bg-gray-700 px-1 rounded">~/.claude/settings.json</code>
+            </p>
+          </div>
+          <button
+            onClick={loadClaudeSettings}
+            className="text-xs text-blue-400 hover:text-blue-300"
+          >
+            Refresh
+          </button>
+        </div>
 
         {claudeError ? (
           <div className="text-sm text-red-400">{claudeError}</div>
         ) : !claudeSettings ? (
           <div className="text-sm text-gray-500">Loading...</div>
         ) : (
-          <div className="space-y-3">
-            {/* Allow patterns */}
+          <div className="space-y-4">
+            {/* AgentWatch Hooks Integration */}
             <div>
-              <div className="text-sm text-green-400 mb-1">
-                Allow ({claudeSettings.settings?.permissions?.allow?.length ?? 0})
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {(claudeSettings.settings?.permissions?.allow ?? []).length === 0 ? (
-                  <span className="text-xs text-gray-500">No allow patterns</span>
-                ) : (
-                  (claudeSettings.settings?.permissions?.allow ?? []).map((p, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 bg-green-900/50 text-green-300 text-xs rounded font-mono"
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-gray-300">AgentWatch Hooks</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">
+                    {countAgentWatchHooks()}/{AGENTWATCH_HOOK_TYPES.length} installed
+                  </span>
+                  {countAgentWatchHooks() < AGENTWATCH_HOOK_TYPES.length ? (
+                    <button
+                      onClick={installAllHooks}
+                      disabled={hookUpdating !== null}
+                      className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded"
                     >
-                      {p}
-                    </span>
-                  ))
-                )}
+                      {hookUpdating === "all" ? "Installing..." : "Install All"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={removeAllHooks}
+                      disabled={hookUpdating !== null}
+                      className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded"
+                    >
+                      {hookUpdating === "all" ? "Removing..." : "Remove All"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {hookMessage && (
+                <div className={`text-xs mb-2 px-2 py-1 rounded ${
+                  hookMessage.includes("Failed") ? "bg-red-900/30 text-red-300" : "bg-green-900/30 text-green-300"
+                }`}>
+                  {hookMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {AGENTWATCH_HOOK_TYPES.map((hookType) => {
+                  const groups = claudeSettings.settings?.hooks?.[hookType] ?? [];
+                  const hasAW = hasAgentWatchHook(groups);
+                  const totalHooks = groups.length;
+                  const isUpdating = hookUpdating === hookType;
+
+                  return (
+                    <button
+                      key={hookType}
+                      onClick={() => toggleHook(hookType)}
+                      disabled={hookUpdating !== null}
+                      className={`px-2 py-2 rounded text-xs text-left transition-colors ${
+                        hasAW
+                          ? "bg-blue-900/50 hover:bg-blue-900/70 text-blue-300 border border-blue-700"
+                          : "bg-gray-900/50 hover:bg-gray-800 text-gray-400 border border-gray-700"
+                      } ${hookUpdating !== null ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                      title={hasAW ? "Click to remove AgentWatch hook" : "Click to add AgentWatch hook"}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium truncate">{hookType}</span>
+                        {isUpdating ? (
+                          <span className="text-[10px] text-gray-400">...</span>
+                        ) : hasAW ? (
+                          <span className="text-[10px] text-blue-400">AW</span>
+                        ) : (
+                          <span className="text-[10px] text-gray-600">+</span>
+                        )}
+                      </div>
+                      {totalHooks > 0 && (
+                        <div className="text-[10px] mt-0.5 opacity-60">
+                          {totalHooks} hook{totalHooks !== 1 ? "s" : ""}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-gray-500 mt-2">
+                Click a hook type to toggle AgentWatch integration. <span className="text-blue-400">AW</span> = AgentWatch enabled
+              </p>
+            </div>
+
+            {/* Permissions */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-300 mb-2">Permissions</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Allow patterns */}
+                <div className="bg-gray-900/50 rounded p-2">
+                  <div className="text-xs text-green-400 mb-1">
+                    Allow ({claudeSettings.settings?.permissions?.allow?.length ?? 0})
+                  </div>
+                  <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                    {(claudeSettings.settings?.permissions?.allow ?? []).length === 0 ? (
+                      <span className="text-xs text-gray-600">None</span>
+                    ) : (
+                      (claudeSettings.settings?.permissions?.allow ?? []).map((p, i) => (
+                        <span
+                          key={i}
+                          className="px-1.5 py-0.5 bg-green-900/50 text-green-300 text-[10px] rounded font-mono"
+                          title={p}
+                        >
+                          {p.length > 30 ? p.slice(0, 30) + "..." : p}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Deny patterns */}
+                <div className="bg-gray-900/50 rounded p-2">
+                  <div className="text-xs text-red-400 mb-1">
+                    Deny ({claudeSettings.settings?.permissions?.deny?.length ?? 0})
+                  </div>
+                  <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                    {(claudeSettings.settings?.permissions?.deny ?? []).length === 0 ? (
+                      <span className="text-xs text-gray-600">None</span>
+                    ) : (
+                      (claudeSettings.settings?.permissions?.deny ?? []).map((p, i) => (
+                        <span
+                          key={i}
+                          className="px-1.5 py-0.5 bg-red-900/50 text-red-300 text-[10px] rounded font-mono"
+                          title={p}
+                        >
+                          {p.length > 30 ? p.slice(0, 30) + "..." : p}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Deny patterns */}
+            {/* Sandbox Status */}
             <div>
-              <div className="text-sm text-red-400 mb-1">
-                Deny ({claudeSettings.settings?.permissions?.deny?.length ?? 0})
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {(claudeSettings.settings?.permissions?.deny ?? []).length === 0 ? (
-                  <span className="text-xs text-gray-500">No deny patterns</span>
-                ) : (
-                  (claudeSettings.settings?.permissions?.deny ?? []).map((p, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 bg-red-900/50 text-red-300 text-xs rounded font-mono"
-                    >
-                      {p}
-                    </span>
-                  ))
+              <h3 className="text-sm font-medium text-gray-300 mb-2">Sandbox</h3>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-2 py-0.5 rounded text-xs ${
+                    claudeSettings.settings?.sandbox?.enabled
+                      ? "bg-green-900/50 text-green-300"
+                      : "bg-gray-700 text-gray-400"
+                  }`}
+                >
+                  {claudeSettings.settings?.sandbox?.enabled ? "Enabled" : "Disabled"}
+                </span>
+                {claudeSettings.settings?.sandbox?.network?.allowedDomains && (
+                  <span className="text-xs text-gray-500">
+                    {claudeSettings.settings.sandbox.network.allowedDomains.length} allowed domains
+                  </span>
                 )}
               </div>
             </div>
-
-            <button
-              onClick={loadClaudeSettings}
-              className="text-xs text-blue-400 hover:text-blue-300"
-            >
-              Refresh
-            </button>
           </div>
         )}
       </div>

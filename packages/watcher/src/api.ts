@@ -239,10 +239,10 @@ export function createWatcherApp(state: WatcherAppState): Hono {
   registerHookStatsRoutes(app, state.hookStore);
 
   // Managed sessions (aw run)
-  registerManagedSessionRoutes(app, state.sessionStore);
+  const predictionStore = new PredictionStore();
+  registerManagedSessionRoutes(app, state.sessionStore, { predictionStore });
 
   // Predictions and calibration (Command Center)
-  const predictionStore = new PredictionStore();
   registerPredictionRoutes(app, predictionStore);
 
   // Hook event handlers (called by Claude Code)

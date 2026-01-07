@@ -157,6 +157,7 @@ export interface ActivityEvent {
 export type WebSocketMessage =
   | { type: "repos_update"; repos: RepoStatus[] }
   | { type: "agents_update"; agents: AgentProcess[] }
+  | { type: "managed_session_update"; session: ManagedSession }
   | { type: "hook_session_start"; session: HookSession }
   | { type: "hook_session_end"; session: HookSession }
   | { type: "hook_session_update"; session: HookSession }

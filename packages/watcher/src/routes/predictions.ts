@@ -224,4 +224,58 @@ export function registerPredictionRoutes(
 
     return c.json({ available, version });
   });
+
+  /**
+   * GET /api/command-center/tmux-sessions
+   * List running tmux sessions.
+   */
+  app.get("/api/command-center/tmux-sessions", (c) => {
+    try {
+      execSync("tmux -V", { encoding: "utf-8", timeout: 3000 });
+    } catch {
+      return c.json({ available: false, sessions: [] });
+    }
+
+    try {
+      const output = execSync(
+        "tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{session_created}\t#{session_attached}'",
+        { encoding: "utf-8", timeout: 5000 }
+      ).trim();
+
+      if (!output) {
+        return c.json({ available: true, sessions: [] });
+      }
+
+      const sessions = output.split("\n").map((line) => {
+        const [name, windows, created, attached] = line.split("\t");
+        return {
+          name: name ?? "",
+          windows: Number.parseInt(windows ?? "0", 10),
+          created_at: Number.parseInt(created ?? "0", 10),
+          attached: attached === "1"
+        };
+      });
+
+      return c.json({ available: true, sessions });
+    } catch {
+      return c.json({ available: true, sessions: [] });
+    }
+  });
+
+  /**
+   * DELETE /api/command-center/tmux-sessions/:id
+   * Kill a tmux session by name.
+   */
+  app.delete("/api/command-center/tmux-sessions/:id", (c) => {
+    const id = c.req.param("id");
+    try {
+      execSync(`tmux kill-session -t ${id}`, {
+        encoding: "utf-8",
+        timeout: 5000
+      });
+      return c.json({ success: true });
+    } catch {
+      return c.json({ error: "Failed to kill tmux session" }, 404);
+    }
+  });
 }

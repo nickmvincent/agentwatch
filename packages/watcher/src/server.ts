@@ -32,6 +32,7 @@ import { ConnectionManager } from "./connection-manager";
 import { PidFile } from "./pid-file";
 import { SessionLogger } from "./session-logger";
 import { createWatcherApp, websocket } from "./api";
+import { managedSessionToDict } from "./routes/managed-sessions";
 
 export interface WatcherServerOptions {
   config?: WatcherConfig;
@@ -63,6 +64,13 @@ export class WatcherServer {
     this.sessionLogger = new SessionLogger(this.config.watcher.logDir);
     this.processLogger = new ProcessLogger();
     this.connectionManager = new ConnectionManager();
+
+    this.sessionStore.setCallback((session) => {
+      this.connectionManager.broadcast({
+        type: "managed_session_update",
+        session: managedSessionToDict(session)
+      });
+    });
 
     // Set up store callbacks for broadcasts
     this.store.setCallbacks({

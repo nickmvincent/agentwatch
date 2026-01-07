@@ -150,6 +150,16 @@ export function useWebSocket(
           case "agents_update":
             setAgents(message.agents);
             break;
+          case "managed_session_update":
+            if (includeManagedSessionsRef.current) {
+              setManagedSessions((prev) => {
+                const next = prev.filter((s) => s.id !== message.session.id);
+                next.push(message.session);
+                next.sort((a, b) => b.started_at - a.started_at);
+                return next;
+              });
+            }
+            break;
           case "hook_session_start":
             if (!hiddenTabsRef.current.has("hooks")) {
               setHookSessions((prev) => {

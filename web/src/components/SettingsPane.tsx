@@ -3129,6 +3129,7 @@ function ClaudeSettingsSection() {
   const [newEnvValue, setNewEnvValue] = useState("");
   const [newDomain, setNewDomain] = useState("");
   const [expandedPreset, setExpandedPreset] = useState<string | null>(null);
+  const showSelfDocs = useSelfDocumentingVisible();
 
   useEffect(() => {
     loadSettings();

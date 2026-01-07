@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getComponentLabel, type ComponentId } from "../../lib/ui-registry";
+import { UI_COMPONENTS, formatComponentName } from "../../lib/ui-registry";
 
 const SELF_DOCS_STORAGE_KEY = "agentwatch-show-self-docs";
 const SELF_DOCS_EVENT = "agentwatch:self-docs";
@@ -29,8 +29,8 @@ interface FileInfo {
 interface SelfDocumentingSectionProps {
   /** Section title */
   title?: string;
-  /** Registry component identifier */
-  componentId?: ComponentId;
+  /** Registry component identifier (string accepted, will look up in registry if defined) */
+  componentId?: string;
   /** Files this component reads from */
   reads?: (string | FileInfo)[];
   /** Files this component writes to */
@@ -88,7 +88,9 @@ export function SelfDocumentingSection({
     notes.length > 0;
 
   const componentLabel = componentId
-    ? getComponentLabel(componentId)
+    ? componentId in UI_COMPONENTS
+      ? formatComponentName(UI_COMPONENTS[componentId as keyof typeof UI_COMPONENTS])
+      : componentId
     : undefined;
 
   if (!hasContent) {
