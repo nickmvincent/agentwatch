@@ -53,7 +53,10 @@ export const SELF_DOCS: Record<string, SelfDocEntry> = {
         description: "Persist agent naming and notes"
       }
     ],
-    tests: ["packages/watcher/test/api.test.ts", "packages/monitor/test/scanners.test.ts"],
+    tests: [
+      "packages/watcher/test/api.test.ts",
+      "packages/monitor/test/scanners.test.ts"
+    ],
     notes: [
       "State uses CPU heuristics with wrapper data when available.",
       "Conversation links are inferred from working directory and timing."
@@ -98,7 +101,10 @@ export const SELF_DOCS: Record<string, SelfDocEntry> = {
   "watcher.agents.annotation-panel": {
     title: "Annotation Panel",
     reads: [
-      { path: "~/.agentwatch/annotations.json", description: "Manual annotation store" },
+      {
+        path: "~/.agentwatch/annotations.json",
+        description: "Manual annotation store"
+      },
       {
         path: "~/.agentwatch/conversation-metadata.json",
         description: "Conversation naming metadata"
@@ -243,7 +249,10 @@ export const SELF_DOCS: Record<string, SelfDocEntry> = {
   "watcher.hooks.pane": {
     title: "Hooks",
     reads: [
-      { path: "GET /api/hooks/sessions", description: "Hook session snapshots" },
+      {
+        path: "GET /api/hooks/sessions",
+        description: "Hook session snapshots"
+      },
       {
         path: "GET /api/hooks/tools/stats",
         description: "Aggregated tool usage stats"
@@ -271,7 +280,10 @@ export const SELF_DOCS: Record<string, SelfDocEntry> = {
   "watcher.command.pane": {
     title: "Command Center",
     reads: [
-      { path: "GET /api/projects", description: "Project list for run context" },
+      {
+        path: "GET /api/projects",
+        description: "Project list for run context"
+      },
       {
         path: "GET /api/principles",
         description: "Principles from selected project path"
@@ -428,7 +440,10 @@ export const SELF_DOCS: Record<string, SelfDocEntry> = {
   "analyzer.conversations.annotation-panel": {
     title: "Annotation Panel",
     reads: [
-      { path: "~/.agentwatch/annotations.json", description: "Manual annotation store" },
+      {
+        path: "~/.agentwatch/annotations.json",
+        description: "Manual annotation store"
+      },
       {
         path: "~/.agentwatch/conversation-metadata.json",
         description: "Conversation naming metadata"

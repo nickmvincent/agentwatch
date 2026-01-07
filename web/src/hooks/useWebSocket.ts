@@ -426,9 +426,7 @@ export function useWebSocket(
 
           case "agentwatch_event":
             // Add unified event to the list (newest first)
-            setUnifiedEvents((prev) =>
-              [message.event, ...prev].slice(0, 500)
-            );
+            setUnifiedEvents((prev) => [message.event, ...prev].slice(0, 500));
             break;
 
           case "ping":

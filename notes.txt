@@ -1,0 +1,7 @@
+2025-01-07
+
+- i opened 4 terminals
+- settings has one minor issue, codex config file is wrong, i beleive it should be Linux/macOS: ~/.codex/config.toml
+- i think i also want a dedicated "endpoint tester" so i can just very quickly click buttons / keystrokes to test all these endpoints
+  - asked codex for this
+- 

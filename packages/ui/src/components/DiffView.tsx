@@ -226,10 +226,7 @@ export function DiffView({
 
   if (!original || !redacted) {
     return (
-      <SelfDocumentingSection
-        componentId={componentId}
-        visible={showSelfDocs}
-      >
+      <SelfDocumentingSection componentId={componentId} visible={showSelfDocs}>
         <div className="text-gray-500 italic text-sm">
           Select a session to preview redactions
         </div>
@@ -239,10 +236,7 @@ export function DiffView({
 
   if (original === redacted) {
     return (
-      <SelfDocumentingSection
-        componentId={componentId}
-        visible={showSelfDocs}
-      >
+      <SelfDocumentingSection componentId={componentId} visible={showSelfDocs}>
         <div className="text-gray-400 italic text-sm">
           No changes - content is identical before and after redaction.
         </div>

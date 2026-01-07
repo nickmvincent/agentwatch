@@ -1,0 +1,23 @@
+{
+  "name": "agentwatch-clean",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:scanner": "bun --hot services/scanner/src/index.ts",
+    "dev:hooks": "bun --hot services/hooks/src/index.ts",
+    "dev:runs": "bun --hot services/runs/src/index.ts",
+    "dev:settings-editor": "bun --hot apps/settings-editor/src/index.ts",
+    "dev:request-lab": "bun --hot apps/request-lab/src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "bun-types": "^1.1.38",
+    "typescript": "^5.4.5",
+    "zod": "^3.23.8"
+  }
+}

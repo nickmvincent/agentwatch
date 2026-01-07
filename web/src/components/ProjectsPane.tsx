@@ -320,10 +320,7 @@ export function ProjectsPane({
   };
 
   return (
-    <SelfDocumentingSection
-      componentId={componentId}
-      visible={showSelfDocs}
-    >
+    <SelfDocumentingSection componentId={componentId} visible={showSelfDocs}>
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <div>

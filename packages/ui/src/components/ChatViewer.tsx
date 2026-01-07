@@ -123,10 +123,7 @@ export function ChatViewer({
   );
 
   return (
-    <SelfDocumentingSection
-      componentId={componentId}
-      visible={showSelfDocs}
-    >
+    <SelfDocumentingSection componentId={componentId} visible={showSelfDocs}>
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">

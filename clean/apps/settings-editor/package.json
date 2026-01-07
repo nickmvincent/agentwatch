@@ -1,0 +1,9 @@
+{
+  "name": "@aw-clean/settings-editor",
+  "version": "0.0.1",
+  "type": "module",
+  "dependencies": {
+    "@aw-clean/core": "*",
+    "hono": "^4.6.8"
+  }
+}

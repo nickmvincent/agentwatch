@@ -1502,7 +1502,15 @@ export interface AgentWatchEvent {
   entityId: string;
   description: string;
   details?: Record<string, unknown>;
-  source: "hook" | "api" | "scanner" | "inferred" | "daemon" | "watcher" | "analyzer" | "user";
+  source:
+    | "hook"
+    | "api"
+    | "scanner"
+    | "inferred"
+    | "daemon"
+    | "watcher"
+    | "analyzer"
+    | "user";
 }
 
 export type AuditCategory =

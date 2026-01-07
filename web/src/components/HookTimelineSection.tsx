@@ -195,7 +195,6 @@ export function HookTimelineSection({
                 )}
               </div>
             </div>
-
           </div>
         )}
       </div>

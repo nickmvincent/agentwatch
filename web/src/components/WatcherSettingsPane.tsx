@@ -79,7 +79,6 @@ export function WatcherSettingsPane() {
   const [hookUpdating, setHookUpdating] = useState<string | null>(null);
   const [hookMessage, setHookMessage] = useState<string | null>(null);
 
-
   const loadConfig = async () => {
     setLoading(true);
     setError(null);
