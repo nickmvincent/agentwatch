@@ -23,6 +23,10 @@ import { useConversations } from "../context/ConversationContext";
 import { ChatViewer } from "./ChatViewer";
 import { ConversationAnnotationPanel } from "./ConversationAnnotationPanel";
 import { EnrichmentTooltip } from "./ui/InfoTooltip";
+import {
+  SelfDocumentingSection,
+  useSelfDocumentingVisible
+} from "./ui/SelfDocumentingSection";
 import { WorkflowProgressWidget } from "./WorkflowProgressWidget";
 
 type ViewMode =
@@ -123,6 +127,7 @@ export function ConversationsPane({
   isActive: _isActive,
   activatedAt: _activatedAt
 }: ConversationsPaneProps) {
+  const showSelfDocs = useSelfDocumentingVisible();
   // Use shared context for conversations and names
   const {
     conversations: contextConversations,
@@ -705,857 +710,449 @@ export function ConversationsPane({
       s.session.hook_session?.session_id === selectedSessionId
   );
 
+  const selfDocs = {
+    title: "Conversations",
+    reads: [
+      {
+        path: "GET /api/contrib/correlated",
+        description: "Correlated sessions + transcripts"
+      },
+      {
+        path: "GET /api/enrichments",
+        description: "Enrichment summary for sessions"
+      },
+      {
+        path: "GET /api/enrichments/:sessionId",
+        description: "Detailed enrichment payload"
+      },
+      {
+        path: "GET /api/projects",
+        description: "Project metadata for filtering"
+      }
+    ],
+    writes: [
+      {
+        path: "POST /api/enrichments/:sessionId/annotation",
+        description: "Manual annotation and workflow status"
+      },
+      {
+        path: "POST /api/enrichments/compute",
+        description: "Bulk enrichment computation"
+      },
+      {
+        path: "POST /api/enrichments/analyze-transcript",
+        description: "Run enrichment analysis for a transcript"
+      }
+    ],
+    tests: ["e2e/analyzer-flow.spec.ts", "packages/analyzer/test/api.test.ts"],
+    notes: [
+      "Transcript lookback window is controlled by analyzer config.",
+      "Session links are built from hook data plus transcript discovery."
+    ]
+  };
+
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="text-gray-400">Loading Conversations...</div>
-      </div>
+      <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400">Loading Conversations...</div>
+        </div>
+      </SelfDocumentingSection>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Data sources info */}
-      <div className="text-xs text-gray-500 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span>Data shown based on transcript days setting in</span>
-          <button
-            onClick={() => {
-              // Navigate to settings tab
-              const event = new KeyboardEvent("keydown", { key: "9" });
-              window.dispatchEvent(event);
-            }}
-            className="text-blue-400 hover:text-blue-300 underline"
-          >
-            Settings
-          </button>
-        </div>
-        <div className="flex items-center gap-3 text-gray-600">
-          <span title="Hook sessions and tool usage data">
-            <code className="bg-gray-700/50 px-1 rounded">
-              ~/.agentwatch/hooks/
-            </code>
+    <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+      <div className="space-y-4">
+        {/* Data sources info */}
+        <div className="text-xs text-gray-500 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>Data shown based on transcript days setting in</span>
             <button
-              onClick={() =>
-                navigator.clipboard.writeText("~/.agentwatch/hooks/")
-              }
-              className="ml-1 text-[10px] text-blue-400 hover:text-blue-300"
-              type="button"
-            >
-              Copy path
-            </button>
-          </span>
-          <span title="Claude Code transcripts">
-            <code className="bg-gray-700/50 px-1 rounded">~/.claude/</code>
-          </span>
-        </div>
-      </div>
-
-      {/* Search + filters */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 p-4 space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-          <input
-            type="text"
-            placeholder="Search conversations by project, agent, tags, or prompt..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white placeholder-gray-400"
-          />
-          <button
-            type="button"
-            onClick={() => setShowAdvancedFilters((open) => !open)}
-            aria-expanded={showAdvancedFilters}
-            aria-controls="conversations-advanced-filters"
-            className="flex items-center gap-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
-          >
-            <span>
-              Advanced
-              {advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ""}
-            </span>
-            <svg
-              className={`w-3 h-3 transition-transform ${
-                showAdvancedFilters ? "rotate-180" : ""
-              }`}
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                fillRule="evenodd"
-                d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-          <select
-            value={filterMatchType}
-            onChange={(e) => setFilterMatchType(e.target.value)}
-            className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-            title="Data completeness: Full = hooks + transcript matched. Linked = matched by path/time. Partial = only one source."
-          >
-            <option value="all">All sources</option>
-            <option value="exact">Full (hooks + transcript)</option>
-            <option value="confident">Linked</option>
-            <option value="uncertain">Linked (uncertain)</option>
-            <option value="unmatched">Partial</option>
-          </select>
-          <select
-            value={filterFeedback}
-            onChange={(e) => setFilterFeedback(e.target.value)}
-            className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-            title="Your manual rating of sessions (thumbs up/down)"
-          >
-            <option value="all">Feedback</option>
-            <option value="positive">Positive</option>
-            <option value="negative">Negative</option>
-            <option value="unlabeled">Unlabeled</option>
-          </select>
-          <select
-            value={filterProject}
-            onChange={(e) => setFilterProject(e.target.value)}
-            className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-            title="Filter by project"
-          >
-            <option value="all">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <select
-              value={sortField}
-              onChange={(e) => setSortField(e.target.value as SortField)}
-              className="flex-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white"
-            >
-              <option value="time">Sort by time</option>
-              <option value="quality">Sort by quality</option>
-            </select>
-            <button
-              onClick={() =>
-                setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
-              }
-              className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
-            >
-              {sortDirection === "desc" ? "Newest" : "Oldest"}
-            </button>
-          </div>
-        </div>
-
-        {showAdvancedFilters && (
-          <div id="conversations-advanced-filters" className="space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              <select
-                value={filterAgent}
-                onChange={(e) => setFilterAgent(e.target.value)}
-                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                title="Filter by AI agent type (Claude Code, Codex, etc.)"
-              >
-                <option value="all">All agents</option>
-                {uniqueAgents.map((agent) => (
-                  <option key={agent} value={agent}>
-                    {agent}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filterHasHooks}
-                onChange={(e) => setFilterHasHooks(e.target.value)}
-                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                title="Hooks = agentwatch event tracking. Sessions with hooks have tool-level data."
-              >
-                <option value="all">Any hooks</option>
-                <option value="has">Has hooks</option>
-                <option value="none">No hooks</option>
-              </select>
-              <select
-                value={filterManaged}
-                onChange={(e) => setFilterManaged(e.target.value)}
-                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                title="Managed = started via 'aw run' with extra metadata. Unmanaged = normal sessions."
-              >
-                <option value="all">All types</option>
-                <option value="managed">Managed</option>
-                <option value="unmanaged">Unmanaged</option>
-              </select>
-              <select
-                value={filterHasQuality}
-                onChange={(e) => setFilterHasQuality(e.target.value)}
-                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                title="Quality scores are computed from session data (tool success, completion, safety)"
-              >
-                <option value="all">Quality score</option>
-                <option value="has">Has score</option>
-                <option value="none">No score</option>
-              </select>
-              <select
-                value={filterWorkflowStatus}
-                onChange={(e) => setFilterWorkflowStatus(e.target.value)}
-                className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
-                title="Contribution workflow status: Pending → Reviewed → Ready to contribute"
-              >
-                <option value="all">Review status</option>
-                <option value="pending">Pending</option>
-                <option value="reviewed">Reviewed</option>
-                <option value="ready_to_contribute">Ready</option>
-                <option value="skipped">Skipped</option>
-              </select>
-              {sessionsWithoutQuality > 0 && (
-                <button
-                  onClick={() => setShowBulkConfirm(true)}
-                  disabled={bulkComputing}
-                  className="col-span-2 md:col-span-1 px-2 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white text-xs rounded"
-                  title={`Compute quality scores for ${sessionsWithoutQuality} sessions`}
-                >
-                  {bulkComputing
-                    ? "Computing..."
-                    : `Compute All (${sessionsWithoutQuality})`}
-                </button>
-              )}
-            </div>
-
-            {/* Bulk Compute Confirmation */}
-            {showBulkConfirm && (
-              <div className="p-3 bg-yellow-900/30 border border-yellow-700 rounded">
-                <div className="text-sm text-yellow-300 mb-2">
-                  Compute quality scores for {sessionsWithoutQuality} sessions?
-                </div>
-                <div className="text-xs text-yellow-400/70 mb-3">
-                  This may take a while for many sessions.
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleBulkComputeQuality}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded"
-                  >
-                    Yes, compute all
-                  </button>
-                  <button
-                    onClick={() => setShowBulkConfirm(false)}
-                    className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Bulk Compute Result */}
-            {bulkComputeResult && (
-              <div className="p-2 bg-green-900/30 border border-green-700 rounded text-xs">
-                <div className="text-green-300">
-                  Computed: {bulkComputeResult.computed}, Skipped:{" "}
-                  {bulkComputeResult.skipped}
-                  {bulkComputeResult.errors > 0 && (
-                    <span className="text-red-400">
-                      , Errors: {bulkComputeResult.errors}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setBulkComputeResult(null)}
-                  className="text-gray-400 hover:text-white mt-1"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-
-            <WorkflowProgressWidget
-              onFilterClick={(status) => {
-                setFilterWorkflowStatus(status);
+              onClick={() => {
+                // Navigate to settings tab
+                const event = new KeyboardEvent("keydown", { key: "9" });
+                window.dispatchEvent(event);
               }}
-            />
+              className="text-blue-400 hover:text-blue-300 underline"
+            >
+              Settings
+            </button>
           </div>
-        )}
-
-        <div className="flex flex-wrap gap-2 text-xs">
-          {filterTaskType !== "all" && (
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-900/30 border border-blue-700 rounded">
-              <span className="text-blue-300">Task: {filterTaskType}</span>
+          <div className="flex items-center gap-3 text-gray-600">
+            <span title="Hook sessions and tool usage data">
+              <code className="bg-gray-700/50 px-1 rounded">
+                ~/.agentwatch/hooks/
+              </code>
               <button
-                onClick={() => setFilterTaskType("all")}
-                className="text-blue-400 hover:text-blue-200"
+                onClick={() =>
+                  navigator.clipboard.writeText("~/.agentwatch/hooks/")
+                }
+                className="ml-1 text-[10px] text-blue-400 hover:text-blue-300"
+                type="button"
               >
-                Clear
+                Copy path
               </button>
-            </div>
-          )}
-          {filterQualityRange !== "all" && (
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-purple-900/30 border border-purple-700 rounded">
-              <span className="text-purple-300">
-                Quality: {filterQualityRange}
-              </span>
-              <button
-                onClick={() => setFilterQualityRange("all")}
-                className="text-purple-400 hover:text-purple-200"
-              >
-                Clear
-              </button>
-            </div>
-          )}
+            </span>
+            <span title="Claude Code transcripts">
+              <code className="bg-gray-700/50 px-1 rounded">~/.claude/</code>
+            </span>
+          </div>
         </div>
 
-        <details className="text-xs text-gray-400">
-          <summary className="cursor-pointer hover:text-gray-300">
-            What do these filters mean?
-          </summary>
-          <div className="mt-2 space-y-2 text-gray-500">
-            <p>
-              <strong>Source:</strong> Full = hooks + transcript matched. Linked
-              = matched by path/time. Partial = only hooks or transcript.
-            </p>
-            <p>
-              <strong>Tags:</strong> Auto-tags come from heuristic analysis.
-              User tags are your manual labels in the annotation panel.
-            </p>
-            <p>
-              <strong>Quality:</strong> Scores summarize completion, safety, and
-              tool success from enrichments.
-            </p>
+        {/* Search + filters */}
+        <div className="bg-gray-800 rounded-lg border border-gray-700 p-4 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search conversations by project, agent, tags, or prompt..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white placeholder-gray-400"
+            />
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters((open) => !open)}
+              aria-expanded={showAdvancedFilters}
+              aria-controls="conversations-advanced-filters"
+              className="flex items-center gap-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
+            >
+              <span>
+                Advanced
+                {advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ""}
+              </span>
+              <svg
+                className={`w-3 h-3 transition-transform ${
+                  showAdvancedFilters ? "rotate-180" : ""
+                }`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
           </div>
-        </details>
-      </div>
 
-      <div className="flex gap-6 h-[calc(100vh-240px)]">
-        {/* Left Panel - Session List */}
-        <div className="w-80 shrink-0 bg-gray-800 rounded-lg flex flex-col">
-          <div className="p-4 border-b border-gray-700">
-            <h2 className="text-lg font-semibold text-white mb-2">
-              Conversations
-            </h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <select
+              value={filterMatchType}
+              onChange={(e) => setFilterMatchType(e.target.value)}
+              className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+              title="Data completeness: Full = hooks + transcript matched. Linked = matched by path/time. Partial = only one source."
+            >
+              <option value="all">All sources</option>
+              <option value="exact">Full (hooks + transcript)</option>
+              <option value="confident">Linked</option>
+              <option value="uncertain">Linked (uncertain)</option>
+              <option value="unmatched">Partial</option>
+            </select>
+            <select
+              value={filterFeedback}
+              onChange={(e) => setFilterFeedback(e.target.value)}
+              className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+              title="Your manual rating of sessions (thumbs up/down)"
+            >
+              <option value="all">Feedback</option>
+              <option value="positive">Positive</option>
+              <option value="negative">Negative</option>
+              <option value="unlabeled">Unlabeled</option>
+            </select>
+            <select
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+              className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+              title="Filter by project"
+            >
+              <option value="all">All Projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <select
+                value={sortField}
+                onChange={(e) => setSortField(e.target.value as SortField)}
+                className="flex-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white"
+              >
+                <option value="time">Sort by time</option>
+                <option value="quality">Sort by quality</option>
+              </select>
+              <button
+                onClick={() =>
+                  setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+                }
+                className="px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white hover:bg-gray-600"
+              >
+                {sortDirection === "desc" ? "Newest" : "Oldest"}
+              </button>
+            </div>
           </div>
 
-          {/* Session List */}
-          <div className="flex-1 overflow-y-auto p-2">
-            {displaySessions.length === 0 ? (
-              <div className="text-gray-500 text-sm p-2">
-                No sessions found matching filters.
+          {showAdvancedFilters && (
+            <div id="conversations-advanced-filters" className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                <select
+                  value={filterAgent}
+                  onChange={(e) => setFilterAgent(e.target.value)}
+                  className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                  title="Filter by AI agent type (Claude Code, Codex, etc.)"
+                >
+                  <option value="all">All agents</option>
+                  {uniqueAgents.map((agent) => (
+                    <option key={agent} value={agent}>
+                      {agent}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={filterHasHooks}
+                  onChange={(e) => setFilterHasHooks(e.target.value)}
+                  className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                  title="Hooks = agentwatch event tracking. Sessions with hooks have tool-level data."
+                >
+                  <option value="all">Any hooks</option>
+                  <option value="has">Has hooks</option>
+                  <option value="none">No hooks</option>
+                </select>
+                <select
+                  value={filterManaged}
+                  onChange={(e) => setFilterManaged(e.target.value)}
+                  className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                  title="Managed = started via 'aw run' with extra metadata. Unmanaged = normal sessions."
+                >
+                  <option value="all">All types</option>
+                  <option value="managed">Managed</option>
+                  <option value="unmanaged">Unmanaged</option>
+                </select>
+                <select
+                  value={filterHasQuality}
+                  onChange={(e) => setFilterHasQuality(e.target.value)}
+                  className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                  title="Quality scores are computed from session data (tool success, completion, safety)"
+                >
+                  <option value="all">Quality score</option>
+                  <option value="has">Has score</option>
+                  <option value="none">No score</option>
+                </select>
+                <select
+                  value={filterWorkflowStatus}
+                  onChange={(e) => setFilterWorkflowStatus(e.target.value)}
+                  className="min-w-0 px-2 py-2 bg-gray-700 border border-gray-600 rounded text-xs text-white truncate"
+                  title="Contribution workflow status: Pending → Reviewed → Ready to contribute"
+                >
+                  <option value="all">Review status</option>
+                  <option value="pending">Pending</option>
+                  <option value="reviewed">Reviewed</option>
+                  <option value="ready_to_contribute">Ready</option>
+                  <option value="skipped">Skipped</option>
+                </select>
+                {sessionsWithoutQuality > 0 && (
+                  <button
+                    onClick={() => setShowBulkConfirm(true)}
+                    disabled={bulkComputing}
+                    className="col-span-2 md:col-span-1 px-2 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white text-xs rounded"
+                    title={`Compute quality scores for ${sessionsWithoutQuality} sessions`}
+                  >
+                    {bulkComputing
+                      ? "Computing..."
+                      : `Compute All (${sessionsWithoutQuality})`}
+                  </button>
+                )}
               </div>
-            ) : (
-              <div className="space-y-2">
-                {displaySessions.map(({ session, enrichmentItem }) => {
-                  const sessionId =
-                    session.correlation_id ||
-                    session.hook_session?.session_id ||
-                    "";
-                  const isSelected = selectedSessionId === sessionId;
-                  const feedback = enrichmentItem?.feedback;
-                  const quality = enrichmentItem?.quality_score;
-                  const taskType = enrichmentItem?.task_type;
-                  const projectName = getProjectName(session.cwd);
-                  const hasManaged = !!session.managed_session;
-                  const dataSource = getDataSourceLabel(
-                    session.match_type,
-                    hasManaged
-                  );
-                  const toolCount =
-                    session.tool_count || session.hook_session?.tool_count || 0;
-                  const messageCount =
-                    session.transcript?.message_count ?? null;
-                  const transcriptSizeKb = session.transcript?.size_bytes
-                    ? Math.round(session.transcript.size_bytes / 1024)
-                    : null;
-                  const customName = conversationNames[sessionId]?.customName;
-                  // Use managed session prompt as default name (truncated)
-                  const managedPrompt = session.managed_session?.prompt;
-                  const promptName =
-                    managedPrompt && managedPrompt.length > 60
-                      ? `${managedPrompt.slice(0, 60)}...`
-                      : managedPrompt;
-                  const displayName = customName || promptName || projectName;
-                  const nameSource: "custom" | "prompt" | "project" = customName
-                    ? "custom"
-                    : promptName
-                      ? "prompt"
-                      : "project";
-                  const isEditingThis = editingNameId === sessionId;
-                  const workflowStatus =
-                    enrichmentItem?.workflow_status &&
-                    enrichmentItem.workflow_status !== "pending"
-                      ? enrichmentItem.workflow_status
-                      : null;
-                  const contextLine =
-                    nameSource === "custom"
-                      ? promptName || session.cwd || projectName
-                      : nameSource === "prompt"
-                        ? session.cwd || projectName
-                        : session.cwd || "";
 
-                  return (
-                    <div
-                      key={sessionId}
-                      onClick={() => setSelectedSessionId(sessionId)}
-                      className={`group p-3 rounded cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-blue-600"
-                          : "bg-gray-700 hover:bg-gray-600"
-                      }`}
+              {/* Bulk Compute Confirmation */}
+              {showBulkConfirm && (
+                <div className="p-3 bg-yellow-900/30 border border-yellow-700 rounded">
+                  <div className="text-sm text-yellow-300 mb-2">
+                    Compute quality scores for {sessionsWithoutQuality}{" "}
+                    sessions?
+                  </div>
+                  <div className="text-xs text-yellow-400/70 mb-3">
+                    This may take a while for many sessions.
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleBulkComputeQuality}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded"
                     >
-                      {/* Conversation name row */}
-                      <div className="flex items-center justify-between mb-1 gap-2">
-                        {isEditingThis ? (
-                          <div
-                            className="flex-1 flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              ref={nameInputRef}
-                              type="text"
-                              value={nameValue}
-                              onChange={(e) => setNameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter")
-                                  handleSaveName(sessionId);
-                                if (e.key === "Escape") {
-                                  setEditingNameId(null);
-                                  setNameValue("");
-                                }
-                              }}
-                              placeholder={projectName}
-                              className="flex-1 px-1.5 py-0.5 bg-gray-800 border border-gray-500 rounded text-sm text-white min-w-0"
-                            />
-                            <button
-                              onClick={() => handleSaveName(sessionId)}
-                              className="px-1.5 py-0.5 bg-blue-500 text-white rounded text-xs hover:bg-blue-400"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingNameId(null);
-                                setNameValue("");
-                              }}
-                              className="px-1.5 py-0.5 bg-gray-600 text-white rounded text-xs hover:bg-gray-500"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-1 min-w-0 flex-1">
-                              <span
-                                className={`text-sm font-medium truncate ${
-                                  nameSource === "custom"
-                                    ? "text-blue-300"
-                                    : nameSource === "prompt"
-                                      ? "text-purple-300"
-                                      : "text-white"
-                                }`}
-                                title={
-                                  customName
-                                    ? `Custom: ${customName} (${session.cwd || ""})`
-                                    : managedPrompt
-                                      ? `Prompt: ${managedPrompt}`
-                                      : session.cwd || ""
-                                }
-                              >
-                                {displayName}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startEditingName(sessionId, customName || "");
-                                }}
-                                className="p-0.5 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 shrink-0"
-                                title="Rename conversation"
-                              >
-                                <svg
-                                  className="w-3 h-3"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
-                            <span className="text-xs text-gray-400 shrink-0">
-                              {formatTime(session.start_time)}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                      Yes, compute all
+                    </button>
+                    <button
+                      onClick={() => setShowBulkConfirm(false)}
+                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                      {/* Agent and data source row */}
-                      <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                        {customName && (
-                          <>
-                            <span
-                              className="truncate max-w-[100px]"
-                              title={session.cwd || ""}
-                            >
-                              {projectName}
-                            </span>
-                            <span className="text-gray-600">•</span>
-                          </>
-                        )}
-                        <span>{session.agent || "agent"}</span>
-                        {dataSource.label && (
-                          <>
-                            <span className="text-gray-600">•</span>
-                            <span className={dataSource.color}>
-                              {dataSource.label}
-                            </span>
-                          </>
-                        )}
-                      </div>
+              {/* Bulk Compute Result */}
+              {bulkComputeResult && (
+                <div className="p-2 bg-green-900/30 border border-green-700 rounded text-xs">
+                  <div className="text-green-300">
+                    Computed: {bulkComputeResult.computed}, Skipped:{" "}
+                    {bulkComputeResult.skipped}
+                    {bulkComputeResult.errors > 0 && (
+                      <span className="text-red-400">
+                        , Errors: {bulkComputeResult.errors}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setBulkComputeResult(null)}
+                    className="text-gray-400 hover:text-white mt-1"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
 
-                      {contextLine && (
-                        <div className="text-[11px] text-gray-500 truncate mb-2">
-                          {contextLine}
-                        </div>
-                      )}
+              <WorkflowProgressWidget
+                onFilterClick={(status) => {
+                  setFilterWorkflowStatus(status);
+                }}
+              />
+            </div>
+          )}
 
-                      <div className="flex flex-wrap gap-1 text-[10px] text-gray-400 mb-2">
-                        {messageCount !== null && (
-                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
-                            {messageCount} msgs
-                          </span>
-                        )}
-                        {toolCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
-                            {toolCount} tools
-                          </span>
-                        )}
-                        {transcriptSizeKb !== null && (
-                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
-                            {transcriptSizeKb}KB
-                          </span>
-                        )}
-                        {session.hook_session?.permission_mode && (
-                          <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
-                            {session.hook_session.permission_mode}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Badges and thumbs row */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          {session.managed_session && (
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-xs ${
-                                session.managed_session.status === "running"
-                                  ? "bg-green-600 text-white"
-                                  : session.managed_session.status ===
-                                      "completed"
-                                    ? "bg-gray-600 text-green-300"
-                                    : "bg-red-600 text-white"
-                              }`}
-                            >
-                              {session.managed_session.status === "running"
-                                ? "running"
-                                : session.managed_session.status === "completed"
-                                  ? `exit ${session.managed_session.exit_code}`
-                                  : `failed (${session.managed_session.exit_code})`}
-                            </span>
-                          )}
-                          {taskType && (
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-xs text-white ${getTaskTypeColor(taskType)}`}
-                            >
-                              {taskType}
-                            </span>
-                          )}
-                          {workflowStatus && (
-                            <span className="px-1.5 py-0.5 rounded text-xs bg-gray-600 text-gray-100">
-                              {workflowStatus}
-                            </span>
-                          )}
-                          {quality !== undefined && (
-                            <span
-                              className={`text-xs font-medium ${getQualityColor(quality)}`}
-                            >
-                              {quality}%
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Quick thumbs buttons */}
-                        <div
-                          className="flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            onClick={() =>
-                              handleFeedbackClick(sessionId, "positive")
-                            }
-                            className={`p-1 rounded text-sm ${
-                              feedback === "positive"
-                                ? "bg-green-600 text-white"
-                                : "text-gray-400 hover:text-green-400"
-                            }`}
-                            title="Mark as positive"
-                          >
-                            +
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleFeedbackClick(sessionId, "negative")
-                            }
-                            className={`p-1 rounded text-sm ${
-                              feedback === "negative"
-                                ? "bg-red-600 text-white"
-                                : "text-gray-400 hover:text-red-400"
-                            }`}
-                            title="Mark as negative"
-                          >
-                            -
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+          <div className="flex flex-wrap gap-2 text-xs">
+            {filterTaskType !== "all" && (
+              <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-900/30 border border-blue-700 rounded">
+                <span className="text-blue-300">Task: {filterTaskType}</span>
+                <button
+                  onClick={() => setFilterTaskType("all")}
+                  className="text-blue-400 hover:text-blue-200"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            {filterQualityRange !== "all" && (
+              <div className="flex items-center gap-2 px-2 py-1.5 bg-purple-900/30 border border-purple-700 rounded">
+                <span className="text-purple-300">
+                  Quality: {filterQualityRange}
+                </span>
+                <button
+                  onClick={() => setFilterQualityRange("all")}
+                  className="text-purple-400 hover:text-purple-200"
+                >
+                  Clear
+                </button>
               </div>
             )}
           </div>
 
-          <div className="p-3 border-t border-gray-700 text-xs text-gray-400 flex items-center justify-between">
-            <span>
-              {displaySessions.length} conversations
-              {enrichmentsList && (
-                <span className="ml-1">
-                  ({enrichmentsList.stats.annotated.positive}+ /{" "}
-                  {enrichmentsList.stats.annotated.negative}-)
-                </span>
-              )}
-            </span>
-            <span className="text-gray-500">Scroll to browse</span>
-          </div>
+          <details className="text-xs text-gray-400">
+            <summary className="cursor-pointer hover:text-gray-300">
+              What do these filters mean?
+            </summary>
+            <div className="mt-2 space-y-2 text-gray-500">
+              <p>
+                <strong>Source:</strong> Full = hooks + transcript matched.
+                Linked = matched by path/time. Partial = only hooks or
+                transcript.
+              </p>
+              <p>
+                <strong>Tags:</strong> Auto-tags come from heuristic analysis.
+                User tags are your manual labels in the annotation panel.
+              </p>
+              <p>
+                <strong>Quality:</strong> Scores summarize completion, safety,
+                and tool success from enrichments.
+              </p>
+            </div>
+          </details>
         </div>
 
-        {/* Right Panel - Detail View */}
-        <div className="flex-1 bg-gray-800 rounded-lg overflow-hidden flex flex-col">
-          {!selectedSessionId ? (
-            <div className="p-6 text-gray-500">
-              Select a session from the list to view details.
+        <div className="flex gap-6 h-[calc(100vh-240px)]">
+          {/* Left Panel - Session List */}
+          <div className="w-80 shrink-0 bg-gray-800 rounded-lg flex flex-col">
+            <div className="p-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                Conversations
+              </h2>
             </div>
-          ) : detailLoading ? (
-            <div className="p-6 text-gray-400">Loading...</div>
-          ) : (
-            <>
-              {/* Header with back button and view mode toggle */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-700 shrink-0">
-                <div className="flex items-center gap-3">
-                  {returnTo && (
-                    <button
-                      onClick={handleBackClick}
-                      className="flex items-center gap-1 px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-gray-700 rounded"
-                    >
-                      ← Back to{" "}
-                      {returnTo.tab === "share" ? "Share" : returnTo.tab}
-                    </button>
-                  )}
-                  <h3 className="text-lg font-semibold text-white">
-                    {conversationNames[selectedSessionId]?.customName ||
-                      getProjectName(selectedSession?.session.cwd)}
-                  </h3>
+
+            {/* Session List */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {displaySessions.length === 0 ? (
+                <div className="text-gray-500 text-sm p-2">
+                  No sessions found matching filters.
                 </div>
-                {/* View mode toggle - single consolidated selector */}
-                <div className="flex items-center gap-1 bg-gray-900 rounded p-1">
-                  <button
-                    onClick={() => setViewMode("overview")}
-                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "overview"
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-gray-700"
-                    }`}
-                    title="Conversation overview and quality scores"
-                  >
-                    Overview
-                  </button>
-                  <button
-                    onClick={() => setViewMode("chat")}
-                    disabled={!selectedSession?.session.transcript}
-                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "chat"
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-gray-700"
-                    } disabled:opacity-30 disabled:cursor-not-allowed`}
-                    title={
-                      !selectedSession?.session.transcript
-                        ? "No transcript file found"
-                        : "Formatted chat view"
-                    }
-                  >
-                    Chat
-                  </button>
-                  <button
-                    onClick={() => setViewMode("transcript-source")}
-                    disabled={!selectedSession?.session.transcript}
-                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "transcript-source"
-                        ? "bg-purple-600 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-gray-700"
-                    } disabled:opacity-30 disabled:cursor-not-allowed`}
-                    title={
-                      !selectedSession?.session.transcript
-                        ? "No transcript file found"
-                        : "Original Claude transcript JSONL file"
-                    }
-                  >
-                    Transcript Source
-                  </button>
-                  <button
-                    onClick={() => setViewMode("aw-log")}
-                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "aw-log"
-                        ? "bg-green-600 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-gray-700"
-                    }`}
-                    title="Agentwatch session data (merged from hooks + transcripts)"
-                  >
-                    AW Log
-                  </button>
-                  <button
-                    onClick={() => setViewMode("timeline")}
-                    disabled={
-                      !selectedSession?.session.hook_session &&
-                      !selectedSession?.session.transcript
-                    }
-                    className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                      viewMode === "timeline"
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-gray-700"
-                    } disabled:opacity-30 disabled:cursor-not-allowed`}
-                    title="Merged timeline from hooks and transcript data"
-                  >
-                    Timeline
-                  </button>
-                </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  {displaySessions.map(({ session, enrichmentItem }) => {
+                    const sessionId =
+                      session.correlation_id ||
+                      session.hook_session?.session_id ||
+                      "";
+                    const isSelected = selectedSessionId === sessionId;
+                    const feedback = enrichmentItem?.feedback;
+                    const quality = enrichmentItem?.quality_score;
+                    const taskType = enrichmentItem?.task_type;
+                    const projectName = getProjectName(session.cwd);
+                    const hasManaged = !!session.managed_session;
+                    const dataSource = getDataSourceLabel(
+                      session.match_type,
+                      hasManaged
+                    );
+                    const toolCount =
+                      session.tool_count ||
+                      session.hook_session?.tool_count ||
+                      0;
+                    const messageCount =
+                      session.transcript?.message_count ?? null;
+                    const transcriptSizeKb = session.transcript?.size_bytes
+                      ? Math.round(session.transcript.size_bytes / 1024)
+                      : null;
+                    const customName = conversationNames[sessionId]?.customName;
+                    // Use managed session prompt as default name (truncated)
+                    const managedPrompt = session.managed_session?.prompt;
+                    const promptName =
+                      managedPrompt && managedPrompt.length > 60
+                        ? `${managedPrompt.slice(0, 60)}...`
+                        : managedPrompt;
+                    const displayName = customName || promptName || projectName;
+                    const nameSource: "custom" | "prompt" | "project" =
+                      customName ? "custom" : promptName ? "prompt" : "project";
+                    const isEditingThis = editingNameId === sessionId;
+                    const workflowStatus =
+                      enrichmentItem?.workflow_status &&
+                      enrichmentItem.workflow_status !== "pending"
+                        ? enrichmentItem.workflow_status
+                        : null;
+                    const contextLine =
+                      nameSource === "custom"
+                        ? promptName || session.cwd || projectName
+                        : nameSource === "prompt"
+                          ? session.cwd || projectName
+                          : session.cwd || "";
 
-              {/* View content */}
-              <div className="flex-1 overflow-y-auto">
-                {/* Chat View - formatted conversation */}
-                {viewMode === "chat" && (
-                  <div className="h-full">
-                    {transcriptLoading ? (
-                      <div className="p-6 text-gray-400">
-                        Loading transcript...
-                      </div>
-                    ) : parsedTranscript ? (
-                      <ChatViewer transcript={parsedTranscript} />
-                    ) : (
-                      <div className="p-6 text-gray-500">
-                        No transcript available
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Transcript Source View - original JSONL file */}
-                {viewMode === "transcript-source" && (
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs text-gray-400">
-                        Original Claude transcript file:{" "}
-                        <code className="text-purple-400">
-                          {selectedSession?.session.transcript?.path ||
-                            "Unknown"}
-                        </code>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (sourceJson) {
-                            navigator.clipboard.writeText(sourceJson);
-                          }
-                        }}
-                        disabled={!sourceJson || sourceLoading}
-                        className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300 disabled:opacity-50"
+                    return (
+                      <div
+                        key={sessionId}
+                        onClick={() => setSelectedSessionId(sessionId)}
+                        className={`group p-3 rounded cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-blue-600"
+                            : "bg-gray-700 hover:bg-gray-600"
+                        }`}
                       >
-                        Copy Source
-                      </button>
-                    </div>
-                    {sourceLoading ? (
-                      <div className="text-center py-8 text-gray-500">
-                        Loading source file...
-                      </div>
-                    ) : sourceJson ? (
-                      <pre className="p-4 bg-gray-900 rounded overflow-auto text-xs font-mono text-purple-400 max-h-[calc(100vh-320px)] whitespace-pre-wrap">
-                        {sourceJson}
-                      </pre>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        No source file available
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* AW Log View - Agentwatch session data */}
-                {viewMode === "aw-log" && (
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs text-gray-400">
-                        Agentwatch merged session data (hooks + transcript
-                        metadata)
-                      </div>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            JSON.stringify(selectedSession?.session, null, 2)
-                          );
-                        }}
-                        className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
-                      >
-                        Copy JSON
-                      </button>
-                    </div>
-                    <pre className="p-4 bg-gray-900 rounded overflow-auto text-xs font-mono text-green-400 max-h-[calc(100vh-320px)]">
-                      {JSON.stringify(selectedSession?.session, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
-                {/* Timeline View - merged hooks + transcript */}
-                {viewMode === "timeline" && (
-                  <div className="p-4">
-                    <FullTimelineView
-                      hooksTimeline={timeline}
-                      transcript={parsedTranscript}
-                      transcriptLoading={transcriptLoading}
-                      onLoadTranscript={() => {
-                        const conv = conversations.find(
-                          (s) =>
-                            s.correlation_id === selectedSessionId ||
-                            s.hook_session?.session_id === selectedSessionId
-                        );
-                        if (conv?.transcript?.id) {
-                          loadTranscript(conv.transcript.id);
-                        }
-                      }}
-                      hasTranscript={!!selectedSession?.session.transcript}
-                      hasHooks={!!selectedSession?.session.hook_session}
-                    />
-                  </div>
-                )}
-
-                {/* Overview View (existing detail view) */}
-                {viewMode === "overview" && (
-                  <div className="p-6 space-y-6">
-                    {/* Overview Section */}
-                    <section>
-                      <h3 className="text-lg font-semibold text-white mb-3">
-                        Overview
-                      </h3>
-                      {/* Conversation Name */}
-                      <div className="mb-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-gray-400 text-sm">Name:</span>
-                          {editingNameId === selectedSessionId ? (
-                            <div className="flex items-center gap-2 flex-1">
+                        {/* Conversation name row */}
+                        <div className="flex items-center justify-between mb-1 gap-2">
+                          {isEditingThis ? (
+                            <div
+                              className="flex-1 flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <input
                                 ref={nameInputRef}
                                 type="text"
@@ -1563,22 +1160,18 @@ export function ConversationsPane({
                                 onChange={(e) => setNameValue(e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter")
-                                    handleSaveName(selectedSessionId);
+                                    handleSaveName(sessionId);
                                   if (e.key === "Escape") {
                                     setEditingNameId(null);
                                     setNameValue("");
                                   }
                                 }}
-                                placeholder={getProjectName(
-                                  selectedSession?.session.cwd
-                                )}
-                                className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                                placeholder={projectName}
+                                className="flex-1 px-1.5 py-0.5 bg-gray-800 border border-gray-500 rounded text-sm text-white min-w-0"
                               />
                               <button
-                                onClick={() =>
-                                  handleSaveName(selectedSessionId)
-                                }
-                                className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-500"
+                                onClick={() => handleSaveName(sessionId)}
+                                className="px-1.5 py-0.5 bg-blue-500 text-white rounded text-xs hover:bg-blue-400"
                               >
                                 Save
                               </button>
@@ -1587,706 +1180,1184 @@ export function ConversationsPane({
                                   setEditingNameId(null);
                                   setNameValue("");
                                 }}
-                                className="px-2 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-500"
+                                className="px-1.5 py-0.5 bg-gray-600 text-white rounded text-xs hover:bg-gray-500"
                               >
                                 Cancel
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-sm ${conversationNames[selectedSessionId]?.customName ? "text-blue-300 font-medium" : "text-gray-500 italic"}`}
-                              >
-                                {conversationNames[selectedSessionId]
-                                  ?.customName || "No custom name"}
-                              </span>
-                              <button
-                                onClick={() =>
-                                  startEditingName(
-                                    selectedSessionId,
-                                    conversationNames[selectedSessionId]
-                                      ?.customName || ""
-                                  )
-                                }
-                                className="p-1 text-gray-500 hover:text-gray-300"
-                                title="Edit name"
-                              >
-                                <svg
-                                  className="w-3.5 h-3.5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-400">Agent:</span>
-                          <span className="ml-2 text-white">
-                            {selectedSession?.session.agent || "Unknown"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Start:</span>
-                          <span className="ml-2 text-white">
-                            {new Date(
-                              selectedSession?.session.start_time || 0
-                            ).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="col-span-2">
-                          <span className="text-gray-400">Directory:</span>
-                          <span className="ml-2 text-white font-mono text-xs">
-                            {selectedSession?.session.cwd || "N/A"}
-                          </span>
-                        </div>
-                      </div>
-                    </section>
-
-                    {/* Data Components Section */}
-                    <section>
-                      <h3 className="text-lg font-semibold text-white mb-3">
-                        Available Data
-                      </h3>
-                      <div className="space-y-3">
-                        {/* Hook Session */}
-                        <div
-                          className={`p-3 rounded-lg ${selectedSession?.session.hook_session ? "bg-green-900/20 border border-green-800/50" : "bg-gray-700/30 border border-gray-600/30"}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`w-2 h-2 rounded-full ${selectedSession?.session.hook_session ? "bg-green-400" : "bg-gray-500"}`}
-                              />
-                              <span className="text-sm font-medium text-white">
-                                Hook Session
-                              </span>
-                              {selectedSession?.session.hook_session && (
-                                <span className="text-xs text-gray-400">
-                                  (real-time tool tracking)
-                                </span>
-                              )}
-                            </div>
-                            {selectedSession?.session.hook_session ? (
-                              <span className="text-xs text-green-400">
-                                Available
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-500">
-                                Not captured
-                              </span>
-                            )}
-                          </div>
-                          {selectedSession?.session.hook_session && (
-                            <div className="mt-2 text-xs text-gray-400 space-y-1">
-                              <div>
-                                Tools used:{" "}
-                                <span className="text-white">
-                                  {
-                                    selectedSession.session.hook_session
-                                      .tool_count
+                            <>
+                              <div className="flex items-center gap-1 min-w-0 flex-1">
+                                <span
+                                  className={`text-sm font-medium truncate ${
+                                    nameSource === "custom"
+                                      ? "text-blue-300"
+                                      : nameSource === "prompt"
+                                        ? "text-purple-300"
+                                        : "text-white"
+                                  }`}
+                                  title={
+                                    customName
+                                      ? `Custom: ${customName} (${session.cwd || ""})`
+                                      : managedPrompt
+                                        ? `Prompt: ${managedPrompt}`
+                                        : session.cwd || ""
                                   }
+                                >
+                                  {displayName}
                                 </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditingName(
+                                      sessionId,
+                                      customName || ""
+                                    );
+                                  }}
+                                  className="p-0.5 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 shrink-0"
+                                  title="Rename conversation"
+                                >
+                                  <svg
+                                    className="w-3 h-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                    />
+                                  </svg>
+                                </button>
                               </div>
-                              {Object.keys(
-                                selectedSession.session.hook_session
-                                  .tools_used || {}
-                              ).length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {Object.entries(
-                                    selectedSession.session.hook_session
-                                      .tools_used
-                                  )
-                                    .slice(0, 6)
-                                    .map(([tool, count]) => (
-                                      <span
-                                        key={tool}
-                                        className="px-1.5 py-0.5 bg-gray-700 rounded text-xs"
-                                      >
-                                        {tool} ({count})
-                                      </span>
-                                    ))}
-                                  {Object.keys(
-                                    selectedSession.session.hook_session
-                                      .tools_used
-                                  ).length > 6 && (
-                                    <span className="text-gray-500">
-                                      +
-                                      {Object.keys(
-                                        selectedSession.session.hook_session
-                                          .tools_used
-                                      ).length - 6}{" "}
-                                      more
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                              <span className="text-xs text-gray-400 shrink-0">
+                                {formatTime(session.start_time)}
+                              </span>
+                            </>
                           )}
                         </div>
 
-                        {/* Transcript */}
-                        <div
-                          className={`p-3 rounded-lg ${selectedSession?.session.transcript ? "bg-blue-900/20 border border-blue-800/50" : "bg-gray-700/30 border border-gray-600/30"}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                        {/* Agent and data source row */}
+                        <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                          {customName && (
+                            <>
                               <span
-                                className={`w-2 h-2 rounded-full ${selectedSession?.session.transcript ? "bg-blue-400" : "bg-gray-500"}`}
-                              />
-                              <span className="text-sm font-medium text-white">
-                                Transcript
+                                className="truncate max-w-[100px]"
+                                title={session.cwd || ""}
+                              >
+                                {projectName}
                               </span>
-                              {selectedSession?.session.transcript && (
-                                <span className="text-xs text-gray-400">
-                                  (conversation history)
-                                </span>
-                              )}
-                            </div>
-                            {selectedSession?.session.transcript ? (
-                              <span className="text-xs text-blue-400">
-                                Available
+                              <span className="text-gray-600">•</span>
+                            </>
+                          )}
+                          <span>{session.agent || "agent"}</span>
+                          {dataSource.label && (
+                            <>
+                              <span className="text-gray-600">•</span>
+                              <span className={dataSource.color}>
+                                {dataSource.label}
                               </span>
-                            ) : (
-                              <span className="text-xs text-gray-500">
-                                Not found
-                              </span>
-                            )}
+                            </>
+                          )}
+                        </div>
+
+                        {contextLine && (
+                          <div className="text-[11px] text-gray-500 truncate mb-2">
+                            {contextLine}
                           </div>
-                          {selectedSession?.session.transcript && (
-                            <div className="mt-2 text-xs text-gray-400 space-y-1">
-                              {selectedSession.session.transcript
-                                .message_count !== null && (
-                                <div>
-                                  Messages:{" "}
-                                  <span className="text-white">
-                                    {
-                                      selectedSession.session.transcript
-                                        .message_count
-                                    }
-                                  </span>
-                                </div>
-                              )}
-                              <div>
-                                Size:{" "}
-                                <span className="text-white">
-                                  {Math.round(
-                                    selectedSession.session.transcript
-                                      .size_bytes / 1024
-                                  )}
-                                  KB
-                                </span>
-                              </div>
-                              {selectedSession.session.transcript
-                                .project_dir && (
-                                <div className="truncate">
-                                  Project:{" "}
-                                  <span className="text-white font-mono">
-                                    {getProjectName(
-                                      selectedSession.session.transcript
-                                        .project_dir
-                                    )}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-1 text-[10px] text-gray-400 mb-2">
+                          {messageCount !== null && (
+                            <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                              {messageCount} msgs
+                            </span>
+                          )}
+                          {toolCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                              {toolCount} tools
+                            </span>
+                          )}
+                          {transcriptSizeKb !== null && (
+                            <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                              {transcriptSizeKb}KB
+                            </span>
+                          )}
+                          {session.hook_session?.permission_mode && (
+                            <span className="px-1.5 py-0.5 rounded bg-gray-800/70">
+                              {session.hook_session.permission_mode}
+                            </span>
                           )}
                         </div>
 
-                        {/* Managed Session */}
-                        <div
-                          className={`p-3 rounded-lg ${selectedSession?.session.managed_session ? "bg-purple-900/20 border border-purple-800/50" : "bg-gray-700/30 border border-gray-600/30"}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                        {/* Badges and thumbs row */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            {session.managed_session && (
                               <span
-                                className={`w-2 h-2 rounded-full ${selectedSession?.session.managed_session ? "bg-purple-400" : "bg-gray-500"}`}
-                              />
-                              <span className="text-sm font-medium text-white">
-                                Managed Session
-                              </span>
-                              {selectedSession?.session.managed_session && (
-                                <span className="text-xs text-gray-400">
-                                  (aw run)
-                                </span>
-                              )}
-                            </div>
-                            {selectedSession?.session.managed_session ? (
-                              <span
-                                className={`text-xs ${
-                                  selectedSession.session.managed_session
-                                    .status === "running"
-                                    ? "text-green-400"
-                                    : selectedSession.session.managed_session
-                                          .status === "completed"
-                                      ? "text-purple-400"
-                                      : "text-red-400"
+                                className={`px-1.5 py-0.5 rounded text-xs ${
+                                  session.managed_session.status === "running"
+                                    ? "bg-green-600 text-white"
+                                    : session.managed_session.status ===
+                                        "completed"
+                                      ? "bg-gray-600 text-green-300"
+                                      : "bg-red-600 text-white"
                                 }`}
                               >
-                                {selectedSession.session.managed_session.status}
+                                {session.managed_session.status === "running"
+                                  ? "running"
+                                  : session.managed_session.status ===
+                                      "completed"
+                                    ? `exit ${session.managed_session.exit_code}`
+                                    : `failed (${session.managed_session.exit_code})`}
                               </span>
-                            ) : (
-                              <span className="text-xs text-gray-500">
-                                Not managed
+                            )}
+                            {taskType && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-xs text-white ${getTaskTypeColor(taskType)}`}
+                              >
+                                {taskType}
+                              </span>
+                            )}
+                            {workflowStatus && (
+                              <span className="px-1.5 py-0.5 rounded text-xs bg-gray-600 text-gray-100">
+                                {workflowStatus}
+                              </span>
+                            )}
+                            {quality !== undefined && (
+                              <span
+                                className={`text-xs font-medium ${getQualityColor(quality)}`}
+                              >
+                                {quality}%
                               </span>
                             )}
                           </div>
-                          {selectedSession?.session.managed_session && (
-                            <div className="mt-2 text-xs space-y-2">
-                              <div className="text-gray-400">
-                                <div className="mb-1">Prompt:</div>
-                                <pre className="p-2 bg-gray-800 rounded text-white overflow-auto max-h-24 whitespace-pre-wrap">
-                                  {
-                                    selectedSession.session.managed_session
-                                      .prompt
+
+                          {/* Quick thumbs buttons */}
+                          <div
+                            className="flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={() =>
+                                handleFeedbackClick(sessionId, "positive")
+                              }
+                              className={`p-1 rounded text-sm ${
+                                feedback === "positive"
+                                  ? "bg-green-600 text-white"
+                                  : "text-gray-400 hover:text-green-400"
+                              }`}
+                              title="Mark as positive"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleFeedbackClick(sessionId, "negative")
+                              }
+                              className={`p-1 rounded text-sm ${
+                                feedback === "negative"
+                                  ? "bg-red-600 text-white"
+                                  : "text-gray-400 hover:text-red-400"
+                              }`}
+                              title="Mark as negative"
+                            >
+                              -
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-gray-700 text-xs text-gray-400 flex items-center justify-between">
+              <span>
+                {displaySessions.length} conversations
+                {enrichmentsList && (
+                  <span className="ml-1">
+                    ({enrichmentsList.stats.annotated.positive}+ /{" "}
+                    {enrichmentsList.stats.annotated.negative}-)
+                  </span>
+                )}
+              </span>
+              <span className="text-gray-500">Scroll to browse</span>
+            </div>
+          </div>
+
+          {/* Right Panel - Detail View */}
+          <div className="flex-1 bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+            {!selectedSessionId ? (
+              <div className="p-6 text-gray-500">
+                Select a session from the list to view details.
+              </div>
+            ) : detailLoading ? (
+              <div className="p-6 text-gray-400">Loading...</div>
+            ) : (
+              <>
+                {/* Header with back button and view mode toggle */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-700 shrink-0">
+                  <div className="flex items-center gap-3">
+                    {returnTo && (
+                      <button
+                        onClick={handleBackClick}
+                        className="flex items-center gap-1 px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-gray-700 rounded"
+                      >
+                        ← Back to{" "}
+                        {returnTo.tab === "share" ? "Share" : returnTo.tab}
+                      </button>
+                    )}
+                    <h3 className="text-lg font-semibold text-white">
+                      {conversationNames[selectedSessionId]?.customName ||
+                        getProjectName(selectedSession?.session.cwd)}
+                    </h3>
+                  </div>
+                  {/* View mode toggle - single consolidated selector */}
+                  <div className="flex items-center gap-1 bg-gray-900 rounded p-1">
+                    <button
+                      onClick={() => setViewMode("overview")}
+                      className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                        viewMode === "overview"
+                          ? "bg-blue-600 text-white"
+                          : "text-gray-400 hover:text-white hover:bg-gray-700"
+                      }`}
+                      title="Conversation overview and quality scores"
+                    >
+                      Overview
+                    </button>
+                    <button
+                      onClick={() => setViewMode("chat")}
+                      disabled={!selectedSession?.session.transcript}
+                      className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                        viewMode === "chat"
+                          ? "bg-blue-600 text-white"
+                          : "text-gray-400 hover:text-white hover:bg-gray-700"
+                      } disabled:opacity-30 disabled:cursor-not-allowed`}
+                      title={
+                        !selectedSession?.session.transcript
+                          ? "No transcript file found"
+                          : "Formatted chat view"
+                      }
+                    >
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => setViewMode("transcript-source")}
+                      disabled={!selectedSession?.session.transcript}
+                      className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                        viewMode === "transcript-source"
+                          ? "bg-purple-600 text-white"
+                          : "text-gray-400 hover:text-white hover:bg-gray-700"
+                      } disabled:opacity-30 disabled:cursor-not-allowed`}
+                      title={
+                        !selectedSession?.session.transcript
+                          ? "No transcript file found"
+                          : "Original Claude transcript JSONL file"
+                      }
+                    >
+                      Transcript Source
+                    </button>
+                    <button
+                      onClick={() => setViewMode("aw-log")}
+                      className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                        viewMode === "aw-log"
+                          ? "bg-green-600 text-white"
+                          : "text-gray-400 hover:text-white hover:bg-gray-700"
+                      }`}
+                      title="Agentwatch session data (merged from hooks + transcripts)"
+                    >
+                      AW Log
+                    </button>
+                    <button
+                      onClick={() => setViewMode("timeline")}
+                      disabled={
+                        !selectedSession?.session.hook_session &&
+                        !selectedSession?.session.transcript
+                      }
+                      className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                        viewMode === "timeline"
+                          ? "bg-blue-600 text-white"
+                          : "text-gray-400 hover:text-white hover:bg-gray-700"
+                      } disabled:opacity-30 disabled:cursor-not-allowed`}
+                      title="Merged timeline from hooks and transcript data"
+                    >
+                      Timeline
+                    </button>
+                  </div>
+                </div>
+
+                {/* View content */}
+                <div className="flex-1 overflow-y-auto">
+                  {/* Chat View - formatted conversation */}
+                  {viewMode === "chat" && (
+                    <div className="h-full">
+                      {transcriptLoading ? (
+                        <div className="p-6 text-gray-400">
+                          Loading transcript...
+                        </div>
+                      ) : parsedTranscript ? (
+                        <ChatViewer transcript={parsedTranscript} />
+                      ) : (
+                        <div className="p-6 text-gray-500">
+                          No transcript available
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Transcript Source View - original JSONL file */}
+                  {viewMode === "transcript-source" && (
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs text-gray-400">
+                          Original Claude transcript file:{" "}
+                          <code className="text-purple-400">
+                            {selectedSession?.session.transcript?.path ||
+                              "Unknown"}
+                          </code>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (sourceJson) {
+                              navigator.clipboard.writeText(sourceJson);
+                            }
+                          }}
+                          disabled={!sourceJson || sourceLoading}
+                          className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300 disabled:opacity-50"
+                        >
+                          Copy Source
+                        </button>
+                      </div>
+                      {sourceLoading ? (
+                        <div className="text-center py-8 text-gray-500">
+                          Loading source file...
+                        </div>
+                      ) : sourceJson ? (
+                        <pre className="p-4 bg-gray-900 rounded overflow-auto text-xs font-mono text-purple-400 max-h-[calc(100vh-320px)] whitespace-pre-wrap">
+                          {sourceJson}
+                        </pre>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          No source file available
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* AW Log View - Agentwatch session data */}
+                  {viewMode === "aw-log" && (
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs text-gray-400">
+                          Agentwatch merged session data (hooks + transcript
+                          metadata)
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              JSON.stringify(selectedSession?.session, null, 2)
+                            );
+                          }}
+                          className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                        >
+                          Copy JSON
+                        </button>
+                      </div>
+                      <pre className="p-4 bg-gray-900 rounded overflow-auto text-xs font-mono text-green-400 max-h-[calc(100vh-320px)]">
+                        {JSON.stringify(selectedSession?.session, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Timeline View - merged hooks + transcript */}
+                  {viewMode === "timeline" && (
+                    <div className="p-4">
+                      <FullTimelineView
+                        hooksTimeline={timeline}
+                        transcript={parsedTranscript}
+                        transcriptLoading={transcriptLoading}
+                        onLoadTranscript={() => {
+                          const conv = conversations.find(
+                            (s) =>
+                              s.correlation_id === selectedSessionId ||
+                              s.hook_session?.session_id === selectedSessionId
+                          );
+                          if (conv?.transcript?.id) {
+                            loadTranscript(conv.transcript.id);
+                          }
+                        }}
+                        hasTranscript={!!selectedSession?.session.transcript}
+                        hasHooks={!!selectedSession?.session.hook_session}
+                      />
+                    </div>
+                  )}
+
+                  {/* Overview View (existing detail view) */}
+                  {viewMode === "overview" && (
+                    <div className="p-6 space-y-6">
+                      {/* Overview Section */}
+                      <section>
+                        <h3 className="text-lg font-semibold text-white mb-3">
+                          Overview
+                        </h3>
+                        {/* Conversation Name */}
+                        <div className="mb-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-gray-400 text-sm">Name:</span>
+                            {editingNameId === selectedSessionId ? (
+                              <div className="flex items-center gap-2 flex-1">
+                                <input
+                                  ref={nameInputRef}
+                                  type="text"
+                                  value={nameValue}
+                                  onChange={(e) => setNameValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter")
+                                      handleSaveName(selectedSessionId);
+                                    if (e.key === "Escape") {
+                                      setEditingNameId(null);
+                                      setNameValue("");
+                                    }
+                                  }}
+                                  placeholder={getProjectName(
+                                    selectedSession?.session.cwd
+                                  )}
+                                  className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                                />
+                                <button
+                                  onClick={() =>
+                                    handleSaveName(selectedSessionId)
                                   }
-                                </pre>
+                                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-500"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingNameId(null);
+                                    setNameValue("");
+                                  }}
+                                  className="px-2 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-500"
+                                >
+                                  Cancel
+                                </button>
                               </div>
-                              <div className="flex gap-4 text-gray-400">
-                                <span>
-                                  Status:{" "}
-                                  <span
-                                    className={`${
-                                      selectedSession.session.managed_session
-                                        .status === "running"
-                                        ? "text-green-400"
-                                        : selectedSession.session
-                                              .managed_session.status ===
-                                            "completed"
-                                          ? "text-white"
-                                          : "text-red-400"
-                                    }`}
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-sm ${conversationNames[selectedSessionId]?.customName ? "text-blue-300 font-medium" : "text-gray-500 italic"}`}
+                                >
+                                  {conversationNames[selectedSessionId]
+                                    ?.customName || "No custom name"}
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    startEditingName(
+                                      selectedSessionId,
+                                      conversationNames[selectedSessionId]
+                                        ?.customName || ""
+                                    )
+                                  }
+                                  className="p-1 text-gray-500 hover:text-gray-300"
+                                  title="Edit name"
+                                >
+                                  <svg
+                                    className="w-3.5 h-3.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
                                   >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-400">Agent:</span>
+                            <span className="ml-2 text-white">
+                              {selectedSession?.session.agent || "Unknown"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Start:</span>
+                            <span className="ml-2 text-white">
+                              {new Date(
+                                selectedSession?.session.start_time || 0
+                              ).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-400">Directory:</span>
+                            <span className="ml-2 text-white font-mono text-xs">
+                              {selectedSession?.session.cwd || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Data Components Section */}
+                      <section>
+                        <h3 className="text-lg font-semibold text-white mb-3">
+                          Available Data
+                        </h3>
+                        <div className="space-y-3">
+                          {/* Hook Session */}
+                          <div
+                            className={`p-3 rounded-lg ${selectedSession?.session.hook_session ? "bg-green-900/20 border border-green-800/50" : "bg-gray-700/30 border border-gray-600/30"}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`w-2 h-2 rounded-full ${selectedSession?.session.hook_session ? "bg-green-400" : "bg-gray-500"}`}
+                                />
+                                <span className="text-sm font-medium text-white">
+                                  Hook Session
+                                </span>
+                                {selectedSession?.session.hook_session && (
+                                  <span className="text-xs text-gray-400">
+                                    (real-time tool tracking)
+                                  </span>
+                                )}
+                              </div>
+                              {selectedSession?.session.hook_session ? (
+                                <span className="text-xs text-green-400">
+                                  Available
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-500">
+                                  Not captured
+                                </span>
+                              )}
+                            </div>
+                            {selectedSession?.session.hook_session && (
+                              <div className="mt-2 text-xs text-gray-400 space-y-1">
+                                <div>
+                                  Tools used:{" "}
+                                  <span className="text-white">
                                     {
-                                      selectedSession.session.managed_session
-                                        .status
+                                      selectedSession.session.hook_session
+                                        .tool_count
                                     }
                                   </span>
+                                </div>
+                                {Object.keys(
+                                  selectedSession.session.hook_session
+                                    .tools_used || {}
+                                ).length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {Object.entries(
+                                      selectedSession.session.hook_session
+                                        .tools_used
+                                    )
+                                      .slice(0, 6)
+                                      .map(([tool, count]) => (
+                                        <span
+                                          key={tool}
+                                          className="px-1.5 py-0.5 bg-gray-700 rounded text-xs"
+                                        >
+                                          {tool} ({count})
+                                        </span>
+                                      ))}
+                                    {Object.keys(
+                                      selectedSession.session.hook_session
+                                        .tools_used
+                                    ).length > 6 && (
+                                      <span className="text-gray-500">
+                                        +
+                                        {Object.keys(
+                                          selectedSession.session.hook_session
+                                            .tools_used
+                                        ).length - 6}{" "}
+                                        more
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Transcript */}
+                          <div
+                            className={`p-3 rounded-lg ${selectedSession?.session.transcript ? "bg-blue-900/20 border border-blue-800/50" : "bg-gray-700/30 border border-gray-600/30"}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`w-2 h-2 rounded-full ${selectedSession?.session.transcript ? "bg-blue-400" : "bg-gray-500"}`}
+                                />
+                                <span className="text-sm font-medium text-white">
+                                  Transcript
                                 </span>
-                                {selectedSession.session.managed_session
-                                  .exit_code !== null && (
-                                  <span>
-                                    Exit:{" "}
+                                {selectedSession?.session.transcript && (
+                                  <span className="text-xs text-gray-400">
+                                    (conversation history)
+                                  </span>
+                                )}
+                              </div>
+                              {selectedSession?.session.transcript ? (
+                                <span className="text-xs text-blue-400">
+                                  Available
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-500">
+                                  Not found
+                                </span>
+                              )}
+                            </div>
+                            {selectedSession?.session.transcript && (
+                              <div className="mt-2 text-xs text-gray-400 space-y-1">
+                                {selectedSession.session.transcript
+                                  .message_count !== null && (
+                                  <div>
+                                    Messages:{" "}
                                     <span className="text-white">
                                       {
+                                        selectedSession.session.transcript
+                                          .message_count
+                                      }
+                                    </span>
+                                  </div>
+                                )}
+                                <div>
+                                  Size:{" "}
+                                  <span className="text-white">
+                                    {Math.round(
+                                      selectedSession.session.transcript
+                                        .size_bytes / 1024
+                                    )}
+                                    KB
+                                  </span>
+                                </div>
+                                {selectedSession.session.transcript
+                                  .project_dir && (
+                                  <div className="truncate">
+                                    Project:{" "}
+                                    <span className="text-white font-mono">
+                                      {getProjectName(
+                                        selectedSession.session.transcript
+                                          .project_dir
+                                      )}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Managed Session */}
+                          <div
+                            className={`p-3 rounded-lg ${selectedSession?.session.managed_session ? "bg-purple-900/20 border border-purple-800/50" : "bg-gray-700/30 border border-gray-600/30"}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`w-2 h-2 rounded-full ${selectedSession?.session.managed_session ? "bg-purple-400" : "bg-gray-500"}`}
+                                />
+                                <span className="text-sm font-medium text-white">
+                                  Managed Session
+                                </span>
+                                {selectedSession?.session.managed_session && (
+                                  <span className="text-xs text-gray-400">
+                                    (aw run)
+                                  </span>
+                                )}
+                              </div>
+                              {selectedSession?.session.managed_session ? (
+                                <span
+                                  className={`text-xs ${
+                                    selectedSession.session.managed_session
+                                      .status === "running"
+                                      ? "text-green-400"
+                                      : selectedSession.session.managed_session
+                                            .status === "completed"
+                                        ? "text-purple-400"
+                                        : "text-red-400"
+                                  }`}
+                                >
+                                  {
+                                    selectedSession.session.managed_session
+                                      .status
+                                  }
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-500">
+                                  Not managed
+                                </span>
+                              )}
+                            </div>
+                            {selectedSession?.session.managed_session && (
+                              <div className="mt-2 text-xs space-y-2">
+                                <div className="text-gray-400">
+                                  <div className="mb-1">Prompt:</div>
+                                  <pre className="p-2 bg-gray-800 rounded text-white overflow-auto max-h-24 whitespace-pre-wrap">
+                                    {
+                                      selectedSession.session.managed_session
+                                        .prompt
+                                    }
+                                  </pre>
+                                </div>
+                                <div className="flex gap-4 text-gray-400">
+                                  <span>
+                                    Status:{" "}
+                                    <span
+                                      className={`${
                                         selectedSession.session.managed_session
-                                          .exit_code
+                                          .status === "running"
+                                          ? "text-green-400"
+                                          : selectedSession.session
+                                                .managed_session.status ===
+                                              "completed"
+                                            ? "text-white"
+                                            : "text-red-400"
+                                      }`}
+                                    >
+                                      {
+                                        selectedSession.session.managed_session
+                                          .status
                                       }
                                     </span>
                                   </span>
-                                )}
-                                <span>
-                                  Duration:{" "}
-                                  <span className="text-white">
-                                    {Math.round(
-                                      selectedSession.session.managed_session
-                                        .duration_ms / 1000
-                                    )}
-                                    s
-                                  </span>
-                                </span>
-                              </div>
-                              {selectedSession.session.managed_session.pid && (
-                                <div className="text-gray-400">
-                                  PID:{" "}
-                                  <span className="text-white font-mono">
-                                    {
-                                      selectedSession.session.managed_session
-                                        .pid
-                                    }
+                                  {selectedSession.session.managed_session
+                                    .exit_code !== null && (
+                                    <span>
+                                      Exit:{" "}
+                                      <span className="text-white">
+                                        {
+                                          selectedSession.session
+                                            .managed_session.exit_code
+                                        }
+                                      </span>
+                                    </span>
+                                  )}
+                                  <span>
+                                    Duration:{" "}
+                                    <span className="text-white">
+                                      {Math.round(
+                                        selectedSession.session.managed_session
+                                          .duration_ms / 1000
+                                      )}
+                                      s
+                                    </span>
                                   </span>
                                 </div>
+                                {selectedSession.session.managed_session
+                                  .pid && (
+                                  <div className="text-gray-400">
+                                    PID:{" "}
+                                    <span className="text-white font-mono">
+                                      {
+                                        selectedSession.session.managed_session
+                                          .pid
+                                      }
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Match explanation */}
+                        {selectedSession?.session.match_type &&
+                          selectedSession.session.match_type !==
+                            "unmatched" && (
+                            <div className="mt-3 p-2 bg-gray-700/50 rounded text-xs text-gray-400">
+                              <span className="text-gray-500">
+                                Correlation:
+                              </span>{" "}
+                              {selectedSession.session.match_type === "exact" &&
+                                "Hook session and transcript matched by ID"}
+                              {selectedSession.session.match_type ===
+                                "confident" &&
+                                "Matched by directory and timing"}
+                              {selectedSession.session.match_type ===
+                                "uncertain" && "Possible match based on timing"}
+                              {selectedSession.session.match_details && (
+                                <span className="ml-2 text-gray-500">
+                                  (score:{" "}
+                                  {selectedSession.session.match_details.score})
+                                </span>
                               )}
                             </div>
                           )}
-                        </div>
-                      </div>
+                      </section>
 
-                      {/* Match explanation */}
-                      {selectedSession?.session.match_type &&
-                        selectedSession.session.match_type !== "unmatched" && (
-                          <div className="mt-3 p-2 bg-gray-700/50 rounded text-xs text-gray-400">
-                            <span className="text-gray-500">Correlation:</span>{" "}
-                            {selectedSession.session.match_type === "exact" &&
-                              "Hook session and transcript matched by ID"}
-                            {selectedSession.session.match_type ===
-                              "confident" && "Matched by directory and timing"}
-                            {selectedSession.session.match_type ===
-                              "uncertain" && "Possible match based on timing"}
-                            {selectedSession.session.match_details && (
-                              <span className="ml-2 text-gray-500">
-                                (score:{" "}
-                                {selectedSession.session.match_details.score})
-                              </span>
+                      {/* Analyze Section - shown for any session without quality score */}
+                      {(selectedSession?.session.transcript?.id ||
+                        selectedSession?.session.hook_session) &&
+                        !selectedEnrichments?.quality_score && (
+                          <section className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4">
+                            <h3 className="text-md font-semibold text-white mb-2">
+                              Compute Quality Analytics
+                            </h3>
+                            <p className="text-sm text-gray-400 mb-3">
+                              This session hasn't been analyzed yet. Click below
+                              to compute quality scores, task type, and other
+                              analytics.
+                            </p>
+                            {analyzeError && (
+                              <div className="mb-3 p-2 bg-red-900/30 border border-red-700 rounded text-sm text-red-400">
+                                {analyzeError}
+                              </div>
                             )}
-                          </div>
+                            <button
+                              onClick={handleAnalyzeSession}
+                              disabled={analyzing}
+                              className={`px-4 py-2 rounded text-sm font-medium ${
+                                analyzing
+                                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                                  : "bg-blue-600 text-white hover:bg-blue-500"
+                              }`}
+                            >
+                              {analyzing ? "Analyzing..." : "Compute Quality"}
+                            </button>
+                          </section>
                         )}
-                    </section>
 
-                    {/* Analyze Section - shown for any session without quality score */}
-                    {(selectedSession?.session.transcript?.id ||
-                      selectedSession?.session.hook_session) &&
-                      !selectedEnrichments?.quality_score && (
-                        <section className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4">
-                          <h3 className="text-md font-semibold text-white mb-2">
-                            Compute Quality Analytics
+                      {/* Auto Tags Section */}
+                      {selectedEnrichments?.auto_tags && (
+                        <section>
+                          <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                            Auto Tags
+                            <EnrichmentTooltip field="auto_tags" />
                           </h3>
-                          <p className="text-sm text-gray-400 mb-3">
-                            This session hasn't been analyzed yet. Click below
-                            to compute quality scores, task type, and other
-                            analytics.
-                          </p>
-                          {analyzeError && (
-                            <div className="mb-3 p-2 bg-red-900/30 border border-red-700 rounded text-sm text-red-400">
-                              {analyzeError}
+                          <div className="mb-2">
+                            <span className="text-gray-400 text-sm flex items-center gap-1">
+                              Task Type:
+                              <EnrichmentTooltip field="task_type" />
+                            </span>
+                            <span
+                              className={`ml-2 px-2 py-1 rounded text-sm text-white ${getTaskTypeColor(selectedEnrichments.auto_tags.taskType)}`}
+                            >
+                              {selectedEnrichments.auto_tags.taskType}
+                            </span>
+                          </div>
+                          {selectedEnrichments.auto_tags.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {selectedEnrichments.auto_tags.tags.map(
+                                (tag: AutoTag, i: number) => (
+                                  <span
+                                    key={i}
+                                    className="px-2 py-1 bg-gray-700 rounded text-xs text-gray-300"
+                                    title={`Category: ${tag.category}, Confidence: ${Math.round(tag.confidence * 100)}%`}
+                                  >
+                                    {tag.name}
+                                  </span>
+                                )
+                              )}
                             </div>
                           )}
-                          <button
-                            onClick={handleAnalyzeSession}
-                            disabled={analyzing}
-                            className={`px-4 py-2 rounded text-sm font-medium ${
-                              analyzing
-                                ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                                : "bg-blue-600 text-white hover:bg-blue-500"
-                            }`}
-                          >
-                            {analyzing ? "Analyzing..." : "Compute Quality"}
-                          </button>
                         </section>
                       )}
 
-                    {/* Auto Tags Section */}
-                    {selectedEnrichments?.auto_tags && (
-                      <section>
-                        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                          Auto Tags
-                          <EnrichmentTooltip field="auto_tags" />
-                        </h3>
-                        <div className="mb-2">
-                          <span className="text-gray-400 text-sm flex items-center gap-1">
-                            Task Type:
-                            <EnrichmentTooltip field="task_type" />
-                          </span>
-                          <span
-                            className={`ml-2 px-2 py-1 rounded text-sm text-white ${getTaskTypeColor(selectedEnrichments.auto_tags.taskType)}`}
-                          >
-                            {selectedEnrichments.auto_tags.taskType}
-                          </span>
-                        </div>
-                        {selectedEnrichments.auto_tags.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {selectedEnrichments.auto_tags.tags.map(
-                              (tag: AutoTag, i: number) => (
-                                <span
-                                  key={i}
-                                  className="px-2 py-1 bg-gray-700 rounded text-xs text-gray-300"
-                                  title={`Category: ${tag.category}, Confidence: ${Math.round(tag.confidence * 100)}%`}
-                                >
-                                  {tag.name}
-                                </span>
-                              )
-                            )}
-                          </div>
-                        )}
-                      </section>
-                    )}
-
-                    {/* Quality Score Section */}
-                    {selectedEnrichments?.quality_score && (
-                      <section>
-                        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                          Quality Score
-                          <EnrichmentTooltip field="quality_score" />
-                        </h3>
-                        <div className="mb-3">
-                          <span
-                            className={`text-3xl font-bold ${getQualityColor(selectedEnrichments.quality_score.overall)}`}
-                          >
-                            {selectedEnrichments.quality_score.overall}%
-                          </span>
-                          <span className="ml-2 text-gray-400 text-sm">
-                            {selectedEnrichments.quality_score.classification}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <span className="text-gray-400 inline-flex items-center gap-1">
-                              Completion
-                              <EnrichmentTooltip field="completion_score" />:
+                      {/* Quality Score Section */}
+                      {selectedEnrichments?.quality_score && (
+                        <section>
+                          <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                            Quality Score
+                            <EnrichmentTooltip field="quality_score" />
+                          </h3>
+                          <div className="mb-3">
+                            <span
+                              className={`text-3xl font-bold ${getQualityColor(selectedEnrichments.quality_score.overall)}`}
+                            >
+                              {selectedEnrichments.quality_score.overall}%
                             </span>
-                            <span className="ml-2 text-white">
-                              {
-                                selectedEnrichments.quality_score.dimensions
-                                  .completion
-                              }
-                              %
+                            <span className="ml-2 text-gray-400 text-sm">
+                              {selectedEnrichments.quality_score.classification}
                             </span>
                           </div>
-                          <div>
-                            <span className="text-gray-400 inline-flex items-center gap-1">
-                              Code Quality
-                              <EnrichmentTooltip field="code_quality_score" />:
-                            </span>
-                            <span className="ml-2 text-white">
-                              {
-                                selectedEnrichments.quality_score.dimensions
-                                  .codeQuality
-                              }
-                              %
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400 inline-flex items-center gap-1">
-                              Efficiency
-                              <EnrichmentTooltip field="efficiency_score" />:
-                            </span>
-                            <span className="ml-2 text-white">
-                              {
-                                selectedEnrichments.quality_score.dimensions
-                                  .efficiency
-                              }
-                              %
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400 inline-flex items-center gap-1">
-                              Safety
-                              <EnrichmentTooltip field="safety_score" />:
-                            </span>
-                            <span className="ml-2 text-white">
-                              {
-                                selectedEnrichments.quality_score.dimensions
-                                  .safety
-                              }
-                              %
-                            </span>
-                          </div>
-                        </div>
-                      </section>
-                    )}
-
-                    {/* Outcome Signals Section */}
-                    {selectedEnrichments?.outcome_signals && (
-                      <section>
-                        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                          Outcome Signals
-                          <span
-                            className="w-3.5 h-3.5 rounded-full bg-gray-600 text-gray-300 text-[9px] flex items-center justify-center cursor-help"
-                            title="Objective results extracted from tool outputs: exit codes, test results, lint errors, build status"
-                          >
-                            ?
-                          </span>
-                        </h3>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <span className="text-gray-400 inline-flex items-center gap-1">
-                              Exit Codes
-                              <EnrichmentTooltip field="exit_code" />:
-                            </span>
-                            <span className="ml-2 text-white">
-                              {
-                                selectedEnrichments.outcome_signals.exitCodes
-                                  .successCount
-                              }{" "}
-                              ok /{" "}
-                              {
-                                selectedEnrichments.outcome_signals.exitCodes
-                                  .failureCount
-                              }{" "}
-                              fail
-                            </span>
-                          </div>
-                          {selectedEnrichments.outcome_signals.testResults && (
+                          <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
                               <span className="text-gray-400 inline-flex items-center gap-1">
-                                Tests
-                                <EnrichmentTooltip field="test_results" />:
-                              </span>
-                              <span className="ml-2 text-green-400">
-                                {
-                                  selectedEnrichments.outcome_signals
-                                    .testResults.passed
-                                }{" "}
-                                passed
-                              </span>
-                              {selectedEnrichments.outcome_signals.testResults
-                                .failed > 0 && (
-                                <span className="ml-1 text-red-400">
-                                  {
-                                    selectedEnrichments.outcome_signals
-                                      .testResults.failed
-                                  }{" "}
-                                  failed
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {selectedEnrichments.outcome_signals.lintResults && (
-                            <div>
-                              <span className="text-gray-400 inline-flex items-center gap-1">
-                                Lint
-                                <EnrichmentTooltip field="lint_results" />:
+                                Completion
+                                <EnrichmentTooltip field="completion_score" />:
                               </span>
                               <span className="ml-2 text-white">
                                 {
-                                  selectedEnrichments.outcome_signals
-                                    .lintResults.errors
-                                }{" "}
-                                errors /{" "}
-                                {
-                                  selectedEnrichments.outcome_signals
-                                    .lintResults.warnings
-                                }{" "}
-                                warnings
+                                  selectedEnrichments.quality_score.dimensions
+                                    .completion
+                                }
+                                %
                               </span>
                             </div>
-                          )}
-                          {selectedEnrichments.outcome_signals.buildStatus && (
                             <div>
-                              <span className="text-gray-400">Build:</span>
-                              <span
-                                className={`ml-2 ${selectedEnrichments.outcome_signals.buildStatus.success ? "text-green-400" : "text-red-400"}`}
-                              >
-                                {selectedEnrichments.outcome_signals.buildStatus
-                                  .success
-                                  ? "Success"
-                                  : "Failed"}
+                              <span className="text-gray-400 inline-flex items-center gap-1">
+                                Code Quality
+                                <EnrichmentTooltip field="code_quality_score" />
+                                :
+                              </span>
+                              <span className="ml-2 text-white">
+                                {
+                                  selectedEnrichments.quality_score.dimensions
+                                    .codeQuality
+                                }
+                                %
                               </span>
                             </div>
-                          )}
-                        </div>
-                      </section>
-                    )}
+                            <div>
+                              <span className="text-gray-400 inline-flex items-center gap-1">
+                                Efficiency
+                                <EnrichmentTooltip field="efficiency_score" />:
+                              </span>
+                              <span className="ml-2 text-white">
+                                {
+                                  selectedEnrichments.quality_score.dimensions
+                                    .efficiency
+                                }
+                                %
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400 inline-flex items-center gap-1">
+                                Safety
+                                <EnrichmentTooltip field="safety_score" />:
+                              </span>
+                              <span className="ml-2 text-white">
+                                {
+                                  selectedEnrichments.quality_score.dimensions
+                                    .safety
+                                }
+                                %
+                              </span>
+                            </div>
+                          </div>
+                        </section>
+                      )}
 
-                    {/* Loop Detection Section */}
-                    {selectedEnrichments?.loop_detection?.loopsDetected &&
-                      selectedEnrichments.loop_detection.patterns.length >
-                        0 && (
-                        <section className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
-                          <h3 className="text-lg font-semibold text-yellow-400 mb-3 flex items-center gap-2">
-                            Loop Detection
-                            <EnrichmentTooltip field="loop_detected" />
-                            <span className="text-sm font-normal text-yellow-500">
-                              ({selectedEnrichments.loop_detection.totalRetries}{" "}
-                              retries)
+                      {/* Outcome Signals Section */}
+                      {selectedEnrichments?.outcome_signals && (
+                        <section>
+                          <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                            Outcome Signals
+                            <span
+                              className="w-3.5 h-3.5 rounded-full bg-gray-600 text-gray-300 text-[9px] flex items-center justify-center cursor-help"
+                              title="Objective results extracted from tool outputs: exit codes, test results, lint errors, build status"
+                            >
+                              ?
                             </span>
                           </h3>
-                          <div className="space-y-2">
-                            {selectedEnrichments.loop_detection.patterns.map(
-                              (pattern: LoopPattern, i: number) => (
-                                <div key={i} className="text-sm">
-                                  <span className="text-yellow-300">
-                                    {pattern.patternType}
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <span className="text-gray-400 inline-flex items-center gap-1">
+                                Exit Codes
+                                <EnrichmentTooltip field="exit_code" />:
+                              </span>
+                              <span className="ml-2 text-white">
+                                {
+                                  selectedEnrichments.outcome_signals.exitCodes
+                                    .successCount
+                                }{" "}
+                                ok /{" "}
+                                {
+                                  selectedEnrichments.outcome_signals.exitCodes
+                                    .failureCount
+                                }{" "}
+                                fail
+                              </span>
+                            </div>
+                            {selectedEnrichments.outcome_signals
+                              .testResults && (
+                              <div>
+                                <span className="text-gray-400 inline-flex items-center gap-1">
+                                  Tests
+                                  <EnrichmentTooltip field="test_results" />:
+                                </span>
+                                <span className="ml-2 text-green-400">
+                                  {
+                                    selectedEnrichments.outcome_signals
+                                      .testResults.passed
+                                  }{" "}
+                                  passed
+                                </span>
+                                {selectedEnrichments.outcome_signals.testResults
+                                  .failed > 0 && (
+                                  <span className="ml-1 text-red-400">
+                                    {
+                                      selectedEnrichments.outcome_signals
+                                        .testResults.failed
+                                    }{" "}
+                                    failed
                                   </span>
-                                  <span className="text-gray-400 ml-2">
-                                    {pattern.iterations} iterations
-                                  </span>
-                                  {pattern.resolution && (
-                                    <span
-                                      className={`ml-2 ${pattern.resolution === "success" ? "text-green-400" : "text-red-400"}`}
-                                    >
-                                      {pattern.resolution}
-                                    </span>
-                                  )}
-                                </div>
-                              )
+                                )}
+                              </div>
+                            )}
+                            {selectedEnrichments.outcome_signals
+                              .lintResults && (
+                              <div>
+                                <span className="text-gray-400 inline-flex items-center gap-1">
+                                  Lint
+                                  <EnrichmentTooltip field="lint_results" />:
+                                </span>
+                                <span className="ml-2 text-white">
+                                  {
+                                    selectedEnrichments.outcome_signals
+                                      .lintResults.errors
+                                  }{" "}
+                                  errors /{" "}
+                                  {
+                                    selectedEnrichments.outcome_signals
+                                      .lintResults.warnings
+                                  }{" "}
+                                  warnings
+                                </span>
+                              </div>
+                            )}
+                            {selectedEnrichments.outcome_signals
+                              .buildStatus && (
+                              <div>
+                                <span className="text-gray-400">Build:</span>
+                                <span
+                                  className={`ml-2 ${selectedEnrichments.outcome_signals.buildStatus.success ? "text-green-400" : "text-red-400"}`}
+                                >
+                                  {selectedEnrichments.outcome_signals
+                                    .buildStatus.success
+                                    ? "Success"
+                                    : "Failed"}
+                                </span>
+                              </div>
                             )}
                           </div>
                         </section>
                       )}
 
-                    {/* Git Diff Section */}
-                    {selectedEnrichments?.diff_snapshot && (
-                      <section>
-                        <h3 className="text-lg font-semibold text-white mb-3">
-                          Git Changes
-                        </h3>
-                        <div className="text-sm space-y-2">
-                          <div className="flex gap-4">
-                            <span className="text-green-400">
-                              +
-                              {
-                                selectedEnrichments.diff_snapshot.summary
-                                  .linesAdded
-                              }
-                            </span>
-                            <span className="text-red-400">
-                              -
-                              {
-                                selectedEnrichments.diff_snapshot.summary
-                                  .linesRemoved
-                              }
-                            </span>
-                            <span className="text-gray-400">
-                              {
-                                selectedEnrichments.diff_snapshot.summary
-                                  .filesChanged
-                              }{" "}
-                              files
-                            </span>
-                          </div>
-                          {selectedEnrichments.diff_snapshot.summary
-                            .commitsCreated > 0 && (
-                            <div className="text-gray-400">
-                              {
-                                selectedEnrichments.diff_snapshot.summary
-                                  .commitsCreated
-                              }{" "}
-                              commit(s)
+                      {/* Loop Detection Section */}
+                      {selectedEnrichments?.loop_detection?.loopsDetected &&
+                        selectedEnrichments.loop_detection.patterns.length >
+                          0 && (
+                          <section className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
+                            <h3 className="text-lg font-semibold text-yellow-400 mb-3 flex items-center gap-2">
+                              Loop Detection
+                              <EnrichmentTooltip field="loop_detected" />
+                              <span className="text-sm font-normal text-yellow-500">
+                                (
+                                {
+                                  selectedEnrichments.loop_detection
+                                    .totalRetries
+                                }{" "}
+                                retries)
+                              </span>
+                            </h3>
+                            <div className="space-y-2">
+                              {selectedEnrichments.loop_detection.patterns.map(
+                                (pattern: LoopPattern, i: number) => (
+                                  <div key={i} className="text-sm">
+                                    <span className="text-yellow-300">
+                                      {pattern.patternType}
+                                    </span>
+                                    <span className="text-gray-400 ml-2">
+                                      {pattern.iterations} iterations
+                                    </span>
+                                    {pattern.resolution && (
+                                      <span
+                                        className={`ml-2 ${pattern.resolution === "success" ? "text-green-400" : "text-red-400"}`}
+                                      >
+                                        {pattern.resolution}
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </section>
-                    )}
-
-                    {/* Manual Annotation Section */}
-                    <section className="border-t border-gray-700 pt-6">
-                      <ConversationAnnotationPanel
-                        sessionId={getEnrichmentId(selectedSessionId)}
-                        manualAnnotation={
-                          selectedEnrichments?.manual_annotation ?? null
-                        }
-                        conversationName={
-                          conversationNames[selectedSessionId]?.customName ||
-                          null
-                        }
-                        conversationNamePlaceholder={getProjectName(
-                          selectedSession?.session.cwd
+                          </section>
                         )}
-                        onConversationNameSave={(name) =>
-                          updateConversationName(selectedSessionId, name)
-                        }
-                        onAnnotationSaved={(manual) => {
-                          setSelectedEnrichments((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  manual_annotation: manual ?? undefined
+
+                      {/* Git Diff Section */}
+                      {selectedEnrichments?.diff_snapshot && (
+                        <section>
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            Git Changes
+                          </h3>
+                          <div className="text-sm space-y-2">
+                            <div className="flex gap-4">
+                              <span className="text-green-400">
+                                +
+                                {
+                                  selectedEnrichments.diff_snapshot.summary
+                                    .linesAdded
                                 }
-                              : prev
-                          );
-                          loadEnrichments();
-                        }}
-                      />
-                    </section>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+                              </span>
+                              <span className="text-red-400">
+                                -
+                                {
+                                  selectedEnrichments.diff_snapshot.summary
+                                    .linesRemoved
+                                }
+                              </span>
+                              <span className="text-gray-400">
+                                {
+                                  selectedEnrichments.diff_snapshot.summary
+                                    .filesChanged
+                                }{" "}
+                                files
+                              </span>
+                            </div>
+                            {selectedEnrichments.diff_snapshot.summary
+                              .commitsCreated > 0 && (
+                              <div className="text-gray-400">
+                                {
+                                  selectedEnrichments.diff_snapshot.summary
+                                    .commitsCreated
+                                }{" "}
+                                commit(s)
+                              </div>
+                            )}
+                          </div>
+                        </section>
+                      )}
+
+                      {/* Manual Annotation Section */}
+                      <section className="border-t border-gray-700 pt-6">
+                        <ConversationAnnotationPanel
+                          sessionId={getEnrichmentId(selectedSessionId)}
+                          manualAnnotation={
+                            selectedEnrichments?.manual_annotation ?? null
+                          }
+                          conversationName={
+                            conversationNames[selectedSessionId]?.customName ||
+                            null
+                          }
+                          conversationNamePlaceholder={getProjectName(
+                            selectedSession?.session.cwd
+                          )}
+                          onConversationNameSave={(name) =>
+                            updateConversationName(selectedSessionId, name)
+                          }
+                          onAnnotationSaved={(manual) => {
+                            setSelectedEnrichments((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    manual_annotation: manual ?? undefined
+                                  }
+                                : prev
+                            );
+                            loadEnrichments();
+                          }}
+                        />
+                      </section>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </SelfDocumentingSection>
   );
 }
 

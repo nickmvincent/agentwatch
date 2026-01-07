@@ -19,6 +19,10 @@ import {
   useConversations
 } from "../context/ConversationContext";
 import { useData } from "../context/DataProvider";
+import {
+  SelfDocumentingSection,
+  useSelfDocumentingVisible
+} from "./ui/SelfDocumentingSection";
 
 interface SessionTokens {
   inputTokens: number;
@@ -384,6 +388,7 @@ export function AnalyticsPane({
   isActive = false,
   activatedAt = 0
 }: AnalyticsPaneProps) {
+  const showSelfDocs = useSelfDocumentingVisible();
   const { setFilter } = useConversations();
   const { getConfig, getAnalytics } = useData();
   const { setLoading: setGlobalLoading } = useLoading();
@@ -727,730 +732,850 @@ export function AnalyticsPane({
     }
   };
 
+  const selfDocs = {
+    title: "Analytics",
+    reads: [
+      {
+        path: "GET /api/analytics/combined",
+        description: "Aggregated analytics data by timeframe"
+      },
+      {
+        path: "GET /api/hooks/stats/daily",
+        description: "Daily hook statistics"
+      },
+      {
+        path: "GET /api/hooks/tools/stats",
+        description: "Per-tool usage statistics"
+      }
+    ],
+    tests: ["e2e/analyzer-flow.spec.ts", "packages/analyzer/test/api.test.ts"],
+    notes: [
+      "Dashboard charts are derived from aggregated analytics endpoints.",
+      "Exports are generated server-side for the selected time window."
+    ]
+  };
+
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-8 text-center">
-        <div className="text-gray-400">Loading analytics...</div>
-      </div>
+      <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+        <div className="bg-gray-800 rounded-lg p-8 text-center">
+          <div className="text-gray-400">Loading analytics...</div>
+        </div>
+      </SelfDocumentingSection>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-xl font-bold text-white mb-1">Analytics</h2>
-        <p className="text-gray-400 text-sm">
-          Research questions answered with data from{" "}
-          {dashboard?.summary.total_sessions || 0} sessions over the last{" "}
-          {transcriptDays} days.{" "}
-          <button
-            onClick={() => {
-              const event = new KeyboardEvent("keydown", { key: "9" });
-              window.dispatchEvent(event);
-            }}
-            className="text-blue-400 hover:text-blue-300 underline"
-          >
-            Adjust time range
-          </button>
-        </p>
-        {dashboard?.sources && (
-          <p className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
-            <span>
-              Sources:{" "}
-              <span className="text-green-400">
-                {dashboard.sources.hook_sessions} hooks
-              </span>
-              {" + "}
-              <span className="text-blue-400">
-                {dashboard.sources.local_transcripts} transcripts
-              </span>
-            </span>
-            <span className="text-gray-600">|</span>
-            <span
-              className="text-[10px] text-gray-600"
-              title="Token/cost data comes from both hook sessions and parsed transcripts"
+    <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+      <div className="space-y-6">
+        {/* Page Header */}
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h2 className="text-xl font-bold text-white mb-1">Analytics</h2>
+          <p className="text-gray-400 text-sm">
+            Research questions answered with data from{" "}
+            {dashboard?.summary.total_sessions || 0} sessions over the last{" "}
+            {transcriptDays} days.{" "}
+            <button
+              onClick={() => {
+                const event = new KeyboardEvent("keydown", { key: "9" });
+                window.dispatchEvent(event);
+              }}
+              className="text-blue-400 hover:text-blue-300 underline"
             >
-              Tokens from both sources
-            </span>
+              Adjust time range
+            </button>
           </p>
+          {dashboard?.sources && (
+            <p className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
+              <span>
+                Sources:{" "}
+                <span className="text-green-400">
+                  {dashboard.sources.hook_sessions} hooks
+                </span>
+                {" + "}
+                <span className="text-blue-400">
+                  {dashboard.sources.local_transcripts} transcripts
+                </span>
+              </span>
+              <span className="text-gray-600">|</span>
+              <span
+                className="text-[10px] text-gray-600"
+                title="Token/cost data comes from both hook sessions and parsed transcripts"
+              >
+                Tokens from both sources
+              </span>
+            </p>
+          )}
+        </div>
+        <div className="bg-yellow-900/20 border border-yellow-800/60 rounded-lg p-3 text-xs text-yellow-200">
+          <div className="font-semibold text-yellow-200">WIP analytics</div>
+          <p className="text-yellow-100/80 mt-1">
+            This page is still a placeholder. Longer term, analytics will be
+            user-specific and many people will not run this inside Agentwatch.
+          </p>
+        </div>
+        {loadErrors.length > 0 && (
+          <details className="bg-yellow-900/20 border border-yellow-800/60 rounded-lg p-3 text-xs text-yellow-200">
+            <summary className="cursor-pointer text-yellow-300">
+              Some analytics data failed to load
+            </summary>
+            <div className="mt-2 space-y-1">
+              {loadErrors.map((error, index) => (
+                <div key={`${error.name}-${index}`}>
+                  <span className="font-mono">{error.name}</span>:{" "}
+                  {error.message}
+                </div>
+              ))}
+            </div>
+          </details>
         )}
-      </div>
-      <div className="bg-yellow-900/20 border border-yellow-800/60 rounded-lg p-3 text-xs text-yellow-200">
-        <div className="font-semibold text-yellow-200">WIP analytics</div>
-        <p className="text-yellow-100/80 mt-1">
-          This page is still a placeholder. Longer term, analytics will be
-          user-specific and many people will not run this inside Agentwatch.
-        </p>
-      </div>
-      {loadErrors.length > 0 && (
-        <details className="bg-yellow-900/20 border border-yellow-800/60 rounded-lg p-3 text-xs text-yellow-200">
-          <summary className="cursor-pointer text-yellow-300">
-            Some analytics data failed to load
-          </summary>
-          <div className="mt-2 space-y-1">
-            {loadErrors.map((error, index) => (
-              <div key={`${error.name}-${index}`}>
-                <span className="font-mono">{error.name}</span>: {error.message}
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
 
-      {/* ================================================================= */}
-      {/* Q1: What's the big picture? */}
-      {/* ================================================================= */}
-      <QuestionSection
-        question="What's the big picture?"
-        description="High-level summary of your AI coding activity"
-      >
-        <QuestionTabs
-          stats={
-            dashboard ? (
-              <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <MetricBox
-                    label="Total Sessions"
-                    value={dashboard.summary.total_sessions}
-                    subtext={
-                      weekStats.sessionsThisWeek > 0
-                        ? `${weekStats.sessionsThisWeek} this week`
-                        : undefined
-                    }
-                  />
-                  <MetricBox
-                    label="Success Rate"
-                    value={`${Math.round(dashboard.summary.success_rate)}%`}
-                    subtext="Quality score >= 60"
-                    color={
-                      dashboard.summary.success_rate >= 70
-                        ? "green"
-                        : dashboard.summary.success_rate >= 50
-                          ? "yellow"
-                          : "red"
-                    }
-                  />
-                  <MetricBox
-                    label="Total Tokens"
-                    value={
-                      <TokenCost
-                        tokens={totalTokens}
-                        usd={dashboard.summary.total_cost_usd}
-                      />
-                    }
-                    subtext={
-                      <TokenCost
-                        tokens={Math.round(tokensPerDay)}
-                        usd={costPerDay}
-                        suffix="per day avg"
-                      />
-                    }
-                    color="blue"
-                    tooltip="Estimated from token counts. May differ from actual billing."
-                  />
-                  <MetricBox
-                    label="Avg Duration"
-                    value={formatDuration(dashboard.summary.avg_duration_ms)}
-                    subtext="Per session"
-                  />
-                </div>
-
-                {dashboard.enrichment_stats && (
-                  <div className="bg-gray-700/50 rounded p-3 text-sm">
-                    <div className="text-gray-400 mb-2">
-                      Enrichment Coverage
-                    </div>
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-center text-xs">
-                      <div>
-                        <div className="text-white font-medium">
-                          {dashboard.enrichment_stats.totalSessions}
-                        </div>
-                        <div className="text-gray-500">Enriched</div>
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">
-                          {dashboard.enrichment_stats.byType.qualityScore}
-                        </div>
-                        <div className="text-gray-500">Quality Scored</div>
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">
-                          {dashboard.enrichment_stats.byType.autoTags}
-                        </div>
-                        <div className="text-gray-500">Auto-tagged</div>
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">
-                          {dashboard.enrichment_stats.byType.loopDetection}
-                        </div>
-                        <div className="text-gray-500">Loop Analyzed</div>
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">
-                          {dashboard.enrichment_stats.byType.diffSnapshot}
-                        </div>
-                        <div className="text-gray-500">Diff Captured</div>
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">
-                          {dashboard.enrichment_stats.byType.manualAnnotation}
-                        </div>
-                        <div className="text-gray-500">Annotated</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No summary data available for this time range.
-              </div>
-            )
-          }
-          figures={
-            dashboard ? (
-              <div className="space-y-4">
-                <div>
-                  <div className="text-sm text-gray-400 mb-2">Success rate</div>
-                  <div className="h-3 bg-gray-700 rounded">
-                    <div
-                      className={`h-3 rounded ${
-                        successRate >= 70
-                          ? "bg-green-500"
-                          : successRate >= 50
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                      }`}
-                      style={{ width: `${Math.min(successRate, 100)}%` }}
+        {/* ================================================================= */}
+        {/* Q1: What's the big picture? */}
+        {/* ================================================================= */}
+        <QuestionSection
+          question="What's the big picture?"
+          description="High-level summary of your AI coding activity"
+        >
+          <QuestionTabs
+            stats={
+              dashboard ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <MetricBox
+                      label="Total Sessions"
+                      value={dashboard.summary.total_sessions}
+                      subtext={
+                        weekStats.sessionsThisWeek > 0
+                          ? `${weekStats.sessionsThisWeek} this week`
+                          : undefined
+                      }
                     />
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {Math.round(successRate)}% of sessions scored as success
-                  </div>
-                </div>
-                {enrichmentCoverage !== null && (
-                  <div>
-                    <div className="text-sm text-gray-400 mb-2">
-                      Enrichment coverage
-                    </div>
-                    <div className="h-3 bg-gray-700 rounded">
-                      <div
-                        className="h-3 rounded bg-blue-500"
-                        style={{
-                          width: `${Math.min(enrichmentCoverage, 100)}%`
-                        }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {Math.round(enrichmentCoverage)}% of sessions enriched
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No figures available for this time range.
-              </div>
-            )
-          }
-          tables={
-            dashboard ? (
-              <div className="space-y-4 text-xs">
-                <table className="w-full">
-                  <thead className="text-gray-500 border-b border-gray-700">
-                    <tr>
-                      <th className="text-left py-1">Metric</th>
-                      <th className="text-right py-1">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-gray-300">
-                    <tr>
-                      <td className="py-1">Total sessions</td>
-                      <td className="py-1 text-right">
-                        {dashboard.summary.total_sessions}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1">Success rate</td>
-                      <td className="py-1 text-right">
-                        {Math.round(dashboard.summary.success_rate)}%
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1">Total tokens</td>
-                      <td className="py-1 text-right">
+                    <MetricBox
+                      label="Success Rate"
+                      value={`${Math.round(dashboard.summary.success_rate)}%`}
+                      subtext="Quality score >= 60"
+                      color={
+                        dashboard.summary.success_rate >= 70
+                          ? "green"
+                          : dashboard.summary.success_rate >= 50
+                            ? "yellow"
+                            : "red"
+                      }
+                    />
+                    <MetricBox
+                      label="Total Tokens"
+                      value={
                         <TokenCost
                           tokens={totalTokens}
                           usd={dashboard.summary.total_cost_usd}
                         />
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1">Tokens per day</td>
-                      <td className="py-1 text-right">
+                      }
+                      subtext={
                         <TokenCost
                           tokens={Math.round(tokensPerDay)}
                           usd={costPerDay}
+                          suffix="per day avg"
                         />
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1">Avg duration</td>
-                      <td className="py-1 text-right">
-                        {formatDuration(dashboard.summary.avg_duration_ms)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                {dashboard.enrichment_stats && (
-                  <table className="w-full">
-                    <thead className="text-gray-500 border-b border-gray-700">
-                      <tr>
-                        <th className="text-left py-1">Enrichment</th>
-                        <th className="text-right py-1">Count</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-300">
-                      <tr>
-                        <td className="py-1">Enriched sessions</td>
-                        <td className="py-1 text-right">
-                          {dashboard.enrichment_stats.totalSessions}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-1">Quality scored</td>
-                        <td className="py-1 text-right">
-                          {dashboard.enrichment_stats.byType.qualityScore}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-1">Auto-tagged</td>
-                        <td className="py-1 text-right">
-                          {dashboard.enrichment_stats.byType.autoTags}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-1">Loop analyzed</td>
-                        <td className="py-1 text-right">
-                          {dashboard.enrichment_stats.byType.loopDetection}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-1">Diff captured</td>
-                        <td className="py-1 text-right">
-                          {dashboard.enrichment_stats.byType.diffSnapshot}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-1">Annotated</td>
-                        <td className="py-1 text-right">
-                          {dashboard.enrichment_stats.byType.manualAnnotation}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No table data available for this time range.
-              </div>
-            )
-          }
-        />
-        <TransparencyDetails
-          label="How the big-picture metrics are calculated"
-          calculations={[
-            "Total sessions comes from hook sessions plus local transcripts in the selected time range.",
-            "Success rate is the percent of sessions with quality score >= 60 (failures are < 40).",
-            "Avg duration is the average of (end - start) for hook sessions that have end times.",
-            "Token usage per day is total_tokens / transcriptDays (USD shown as a rough estimate)."
-          ]}
-          data={{
-            transcript_days: transcriptDays,
-            dashboard,
-            derived: {
-              cost_per_day_usd: costPerDay,
-              tokens_per_day: Math.round(tokensPerDay)
-            }
-          }}
-        />
-      </QuestionSection>
-
-      {/* ================================================================= */}
-      {/* Q2: Am I getting more value over time? */}
-      {/* ================================================================= */}
-      <QuestionSection
-        question="Am I getting more value over time?"
-        description="Track quality trends and week-over-week changes"
-      >
-        <QuestionTabs
-          stats={
-            qualityPercentiles ? (
-              <>
-                <div className="mb-4">
-                  <HeroMetric
-                    value={qualityPercentiles.p50}
-                    label="Median Quality Score"
-                    subtext={`p25: ${qualityPercentiles.p25} | p75: ${qualityPercentiles.p75} | p90: ${qualityPercentiles.p90}`}
-                    color={
-                      qualityPercentiles.p50 >= 70
-                        ? "green"
-                        : qualityPercentiles.p50 >= 50
-                          ? "yellow"
-                          : "red"
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <MetricBox label="p25" value={qualityPercentiles.p25} />
-                  <MetricBox label="p50" value={qualityPercentiles.p50} />
-                  <MetricBox label="p75" value={qualityPercentiles.p75} />
-                  <MetricBox label="p90" value={qualityPercentiles.p90} />
-                </div>
-              </>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No quality summary available for this time range.
-              </div>
-            )
-          }
-          figures={
-            successTrend.length > 0 || qualityDist.length > 0 ? (
-              <div className="space-y-4">
-                {successTrend.length > 0 ? (
-                  <div>
-                    <div className="text-sm text-gray-400 mb-2">
-                      Daily Success Rate
-                    </div>
-                    <div className="flex items-end gap-1 h-24">
-                      {successTrend.map((point, i) => {
-                        // Use point.total for all sessions (including unscored)
-                        const scoredTotal =
-                          point.success_count + point.failure_count;
-                        const successPct =
-                          scoredTotal > 0
-                            ? point.success_count / scoredTotal
-                            : 0;
-                        const maxCount = Math.max(
-                          ...successTrend.map((p) => p.total),
-                          1
-                        );
-                        const height = (point.total / maxCount) * 100;
-
-                        return (
-                          <div
-                            key={i}
-                            className="flex-1 flex flex-col items-center cursor-pointer hover:opacity-80"
-                            title={`${point.date}: ${point.total} sessions, ${point.success_count} success, ${point.failure_count} failed`}
-                          >
-                            <div
-                              className="w-full bg-gray-600 rounded-t relative overflow-hidden"
-                              style={{ height: `${Math.max(height, 4)}%` }}
-                            >
-                              <div
-                                className="absolute bottom-0 w-full bg-green-500"
-                                style={{ height: `${successPct * 100}%` }}
-                              />
-                            </div>
-                            {i % 3 === 0 && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                {point.date.slice(5)}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex justify-between mt-2 text-xs text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-500 rounded" />{" "}
-                        Success
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 bg-gray-600 rounded" />{" "}
-                        Failed/Unknown
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-center py-4">
-                    No daily success trend data yet.
-                  </div>
-                )}
-
-                {qualityDist.length > 0 ? (
-                  <div className="bg-gray-700/50 rounded p-3">
-                    <div className="text-sm text-gray-400 mb-2">
-                      Quality Distribution
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {qualityDist.map((bucket, i) => (
-                        <div
-                          key={i}
-                          className="text-center cursor-pointer hover:bg-gray-600/50 rounded p-2"
-                          onClick={() =>
-                            bucket.count > 0 &&
-                            navigateWithFilter({ qualityRange: bucket.range })
-                          }
-                        >
-                          <div
-                            className={`text-lg font-bold ${getQualityColor(bucket.range)}`}
-                          >
-                            {bucket.count}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {bucket.range}
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            {bucket.percentage.toFixed(0)}%
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <DrillDownLink
-                      label="View all sessions by quality"
-                      onClick={() => navigateWithFilter({})}
+                      }
+                      color="blue"
+                      tooltip="Estimated from token counts. May differ from actual billing."
+                    />
+                    <MetricBox
+                      label="Avg Duration"
+                      value={formatDuration(dashboard.summary.avg_duration_ms)}
+                      subtext="Per session"
                     />
                   </div>
-                ) : (
-                  <div className="text-gray-500 text-center py-4">
-                    No quality distribution data yet.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No figures available for this time range.
-              </div>
-            )
-          }
-          tables={
-            successTrend.length > 0 || qualityDist.length > 0 ? (
-              <div className="space-y-4 text-xs">
-                {successTrend.length > 0 && (
-                  <table className="w-full">
-                    <thead className="text-gray-500 border-b border-gray-700">
-                      <tr>
-                        <th className="text-left py-1">Date</th>
-                        <th className="text-right py-1">Total</th>
-                        <th className="text-right py-1">Success</th>
-                        <th className="text-right py-1">Failed</th>
-                        <th className="text-right py-1">Rate</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-300">
-                      {successTrend.map((point) => (
-                        <tr
-                          key={point.date}
-                          className="border-b border-gray-800"
-                        >
-                          <td className="py-1">{point.date}</td>
-                          <td className="py-1 text-right">{point.total}</td>
-                          <td className="py-1 text-right">
-                            {point.success_count}
-                          </td>
-                          <td className="py-1 text-right">
-                            {point.failure_count}
-                          </td>
-                          <td className="py-1 text-right">
-                            {Math.round(point.rate)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                {qualityDist.length > 0 && (
-                  <table className="w-full">
-                    <thead className="text-gray-500 border-b border-gray-700">
-                      <tr>
-                        <th className="text-left py-1">Range</th>
-                        <th className="text-right py-1">Count</th>
-                        <th className="text-right py-1">Percent</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-300">
-                      {qualityDist.map((bucket) => (
-                        <tr key={bucket.range}>
-                          <td className="py-1">{bucket.range}</td>
-                          <td className="py-1 text-right">{bucket.count}</td>
-                          <td className="py-1 text-right">
-                            {bucket.percentage.toFixed(0)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No table data available for this time range.
-              </div>
-            )
-          }
-        />
-        <TransparencyDetails
-          label="How quality trends are calculated"
-          calculations={[
-            "Daily success bars show total sessions per day; green portion is success_count / total.",
-            "Success is quality score >= 60; failure is quality score < 40.",
-            "Quality distribution buckets are 0-25, 25-50, 50-75, 75-100.",
-            "Percentiles are computed from all available quality scores."
-          ]}
-          data={{
-            transcript_days: transcriptDays,
-            success_trend: successTrend,
-            quality_distribution: qualityDist,
-            quality_percentiles: qualityPercentiles
-          }}
-        />
-      </QuestionSection>
 
-      {/* ================================================================= */}
-      {/* Q3: Where are my tokens going? */}
-      {/* ================================================================= */}
-      <QuestionSection
-        question="Where are my tokens going?"
-        description="Token usage breakdown by task type and project"
-      >
-        <QuestionTabs
-          stats={
-            dashboard ? (
-              <>
-                <div className="mb-4">
-                  <HeroMetric
-                    value={
-                      <TokenCost
-                        tokens={totalTokens}
-                        usd={dashboard.summary.total_cost_usd}
-                      />
-                    }
-                    label="Total Tokens"
-                    subtext={
-                      <TokenCost
-                        tokens={Math.round(tokensPerDay)}
-                        usd={costPerDay}
-                        suffix={`per day avg over ${transcriptDays} days`}
-                      />
-                    }
-                    color="blue"
-                    tooltip="Estimated from token counts. May differ from actual billing."
-                  />
+                  {dashboard.enrichment_stats && (
+                    <div className="bg-gray-700/50 rounded p-3 text-sm">
+                      <div className="text-gray-400 mb-2">
+                        Enrichment Coverage
+                      </div>
+                      <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-center text-xs">
+                        <div>
+                          <div className="text-white font-medium">
+                            {dashboard.enrichment_stats.totalSessions}
+                          </div>
+                          <div className="text-gray-500">Enriched</div>
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">
+                            {dashboard.enrichment_stats.byType.qualityScore}
+                          </div>
+                          <div className="text-gray-500">Quality Scored</div>
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">
+                            {dashboard.enrichment_stats.byType.autoTags}
+                          </div>
+                          <div className="text-gray-500">Auto-tagged</div>
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">
+                            {dashboard.enrichment_stats.byType.loopDetection}
+                          </div>
+                          <div className="text-gray-500">Loop Analyzed</div>
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">
+                            {dashboard.enrichment_stats.byType.diffSnapshot}
+                          </div>
+                          <div className="text-gray-500">Diff Captured</div>
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">
+                            {dashboard.enrichment_stats.byType.manualAnnotation}
+                          </div>
+                          <div className="text-gray-500">Annotated</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No summary data available for this time range.
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <MetricBox
-                    label="Avg Tokens / Session"
-                    value={
-                      <TokenCost
-                        tokens={
-                          dashboard.summary.total_sessions > 0
-                            ? Math.round(
-                                totalTokens / dashboard.summary.total_sessions
-                              )
-                            : 0
-                        }
-                        usd={avgCostPerSession}
-                      />
-                    }
-                  />
-                  <MetricBox
-                    label="Top Task Type"
-                    value={topCostType?.task_type ?? "-"}
-                    subtext={
-                      topCostType ? (
-                        <TokenCost
-                          tokens={sumTokens(
-                            topCostType.total_input_tokens,
-                            topCostType.total_output_tokens
-                          )}
-                          usd={topCostType.total_cost_usd}
-                        />
-                      ) : (
-                        "No task type data"
-                      )
-                    }
-                  />
-                  <MetricBox
-                    label="Top Project"
-                    value={topProjectByCost?.project_name ?? "-"}
-                    subtext={
-                      topProjectByCost ? (
-                        <TokenCost
-                          tokens={sumTokens(
-                            topProjectByCost.total_input_tokens,
-                            topProjectByCost.total_output_tokens
-                          )}
-                          usd={topProjectByCost.total_cost_usd}
-                        />
-                      ) : (
-                        "No project data"
-                      )
-                    }
-                  />
-                  <MetricBox
-                    label="Unassigned Tokens"
-                    value={
-                      <TokenCost
-                        tokens={sumTokens(
-                          unassignedProjects.total_input_tokens,
-                          unassignedProjects.total_output_tokens
-                        )}
-                        usd={unassignedProjects.total_cost_usd}
-                      />
-                    }
-                    subtext={`${unassignedProjects.session_count} sessions`}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No token summary available for this time range.
-              </div>
-            )
-          }
-          figures={
-            costByType.length > 0 || projectsByCost.length > 0 ? (
-              <div className="space-y-4">
-                {costByType.length > 0 ? (
+              )
+            }
+            figures={
+              dashboard ? (
+                <div className="space-y-4">
                   <div>
                     <div className="text-sm text-gray-400 mb-2">
-                      By Task Type{" "}
-                      <span
-                        className="text-[10px] text-gray-600 font-normal"
-                        title="Task types are auto-inferred from tool usage patterns (e.g., running tests = 'test', editing .md files = 'docs')"
-                      >
-                        (auto-inferred)
-                      </span>
+                      Success rate
                     </div>
-                    <div className="space-y-2">
-                      {costByType.map((item) => {
-                        const barWidth =
-                          (item.total_cost_usd / maxCostByType) * 100;
-                        const colorClass =
-                          TASK_TYPE_COLORS[item.task_type] || "bg-gray-500";
+                    <div className="h-3 bg-gray-700 rounded">
+                      <div
+                        className={`h-3 rounded ${
+                          successRate >= 70
+                            ? "bg-green-500"
+                            : successRate >= 50
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                        }`}
+                        style={{ width: `${Math.min(successRate, 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {Math.round(successRate)}% of sessions scored as success
+                    </div>
+                  </div>
+                  {enrichmentCoverage !== null && (
+                    <div>
+                      <div className="text-sm text-gray-400 mb-2">
+                        Enrichment coverage
+                      </div>
+                      <div className="h-3 bg-gray-700 rounded">
+                        <div
+                          className="h-3 rounded bg-blue-500"
+                          style={{
+                            width: `${Math.min(enrichmentCoverage, 100)}%`
+                          }}
+                        />
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {Math.round(enrichmentCoverage)}% of sessions enriched
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No figures available for this time range.
+                </div>
+              )
+            }
+            tables={
+              dashboard ? (
+                <div className="space-y-4 text-xs">
+                  <table className="w-full">
+                    <thead className="text-gray-500 border-b border-gray-700">
+                      <tr>
+                        <th className="text-left py-1">Metric</th>
+                        <th className="text-right py-1">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-gray-300">
+                      <tr>
+                        <td className="py-1">Total sessions</td>
+                        <td className="py-1 text-right">
+                          {dashboard.summary.total_sessions}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">Success rate</td>
+                        <td className="py-1 text-right">
+                          {Math.round(dashboard.summary.success_rate)}%
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">Total tokens</td>
+                        <td className="py-1 text-right">
+                          <TokenCost
+                            tokens={totalTokens}
+                            usd={dashboard.summary.total_cost_usd}
+                          />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">Tokens per day</td>
+                        <td className="py-1 text-right">
+                          <TokenCost
+                            tokens={Math.round(tokensPerDay)}
+                            usd={costPerDay}
+                          />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-1">Avg duration</td>
+                        <td className="py-1 text-right">
+                          {formatDuration(dashboard.summary.avg_duration_ms)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {dashboard.enrichment_stats && (
+                    <table className="w-full">
+                      <thead className="text-gray-500 border-b border-gray-700">
+                        <tr>
+                          <th className="text-left py-1">Enrichment</th>
+                          <th className="text-right py-1">Count</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-300">
+                        <tr>
+                          <td className="py-1">Enriched sessions</td>
+                          <td className="py-1 text-right">
+                            {dashboard.enrichment_stats.totalSessions}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Quality scored</td>
+                          <td className="py-1 text-right">
+                            {dashboard.enrichment_stats.byType.qualityScore}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Auto-tagged</td>
+                          <td className="py-1 text-right">
+                            {dashboard.enrichment_stats.byType.autoTags}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Loop analyzed</td>
+                          <td className="py-1 text-right">
+                            {dashboard.enrichment_stats.byType.loopDetection}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Diff captured</td>
+                          <td className="py-1 text-right">
+                            {dashboard.enrichment_stats.byType.diffSnapshot}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Annotated</td>
+                          <td className="py-1 text-right">
+                            {dashboard.enrichment_stats.byType.manualAnnotation}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No table data available for this time range.
+                </div>
+              )
+            }
+          />
+          <TransparencyDetails
+            label="How the big-picture metrics are calculated"
+            calculations={[
+              "Total sessions comes from hook sessions plus local transcripts in the selected time range.",
+              "Success rate is the percent of sessions with quality score >= 60 (failures are < 40).",
+              "Avg duration is the average of (end - start) for hook sessions that have end times.",
+              "Token usage per day is total_tokens / transcriptDays (USD shown as a rough estimate)."
+            ]}
+            data={{
+              transcript_days: transcriptDays,
+              dashboard,
+              derived: {
+                cost_per_day_usd: costPerDay,
+                tokens_per_day: Math.round(tokensPerDay)
+              }
+            }}
+          />
+        </QuestionSection>
 
-                        return (
+        {/* ================================================================= */}
+        {/* Q2: Am I getting more value over time? */}
+        {/* ================================================================= */}
+        <QuestionSection
+          question="Am I getting more value over time?"
+          description="Track quality trends and week-over-week changes"
+        >
+          <QuestionTabs
+            stats={
+              qualityPercentiles ? (
+                <>
+                  <div className="mb-4">
+                    <HeroMetric
+                      value={qualityPercentiles.p50}
+                      label="Median Quality Score"
+                      subtext={`p25: ${qualityPercentiles.p25} | p75: ${qualityPercentiles.p75} | p90: ${qualityPercentiles.p90}`}
+                      color={
+                        qualityPercentiles.p50 >= 70
+                          ? "green"
+                          : qualityPercentiles.p50 >= 50
+                            ? "yellow"
+                            : "red"
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <MetricBox label="p25" value={qualityPercentiles.p25} />
+                    <MetricBox label="p50" value={qualityPercentiles.p50} />
+                    <MetricBox label="p75" value={qualityPercentiles.p75} />
+                    <MetricBox label="p90" value={qualityPercentiles.p90} />
+                  </div>
+                </>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No quality summary available for this time range.
+                </div>
+              )
+            }
+            figures={
+              successTrend.length > 0 || qualityDist.length > 0 ? (
+                <div className="space-y-4">
+                  {successTrend.length > 0 ? (
+                    <div>
+                      <div className="text-sm text-gray-400 mb-2">
+                        Daily Success Rate
+                      </div>
+                      <div className="flex items-end gap-1 h-24">
+                        {successTrend.map((point, i) => {
+                          // Use point.total for all sessions (including unscored)
+                          const scoredTotal =
+                            point.success_count + point.failure_count;
+                          const successPct =
+                            scoredTotal > 0
+                              ? point.success_count / scoredTotal
+                              : 0;
+                          const maxCount = Math.max(
+                            ...successTrend.map((p) => p.total),
+                            1
+                          );
+                          const height = (point.total / maxCount) * 100;
+
+                          return (
+                            <div
+                              key={i}
+                              className="flex-1 flex flex-col items-center cursor-pointer hover:opacity-80"
+                              title={`${point.date}: ${point.total} sessions, ${point.success_count} success, ${point.failure_count} failed`}
+                            >
+                              <div
+                                className="w-full bg-gray-600 rounded-t relative overflow-hidden"
+                                style={{ height: `${Math.max(height, 4)}%` }}
+                              >
+                                <div
+                                  className="absolute bottom-0 w-full bg-green-500"
+                                  style={{ height: `${successPct * 100}%` }}
+                                />
+                              </div>
+                              {i % 3 === 0 && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {point.date.slice(5)}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between mt-2 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 bg-green-500 rounded" />{" "}
+                          Success
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 bg-gray-600 rounded" />{" "}
+                          Failed/Unknown
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-center py-4">
+                      No daily success trend data yet.
+                    </div>
+                  )}
+
+                  {qualityDist.length > 0 ? (
+                    <div className="bg-gray-700/50 rounded p-3">
+                      <div className="text-sm text-gray-400 mb-2">
+                        Quality Distribution
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {qualityDist.map((bucket, i) => (
                           <div
-                            key={item.task_type}
-                            className="flex items-center gap-3 cursor-pointer hover:bg-gray-700/50 rounded p-1 -m-1"
+                            key={i}
+                            className="text-center cursor-pointer hover:bg-gray-600/50 rounded p-2"
                             onClick={() =>
-                              navigateWithFilter({ taskType: item.task_type })
+                              bucket.count > 0 &&
+                              navigateWithFilter({ qualityRange: bucket.range })
                             }
                           >
-                            <Badge label={item.task_type} color={colorClass} />
-                            <div className="flex-1">
-                              <div
-                                className={`h-4 rounded ${colorClass}`}
-                                style={{
-                                  width: `${barWidth}%`,
-                                  minWidth: "4px"
-                                }}
-                              />
+                            <div
+                              className={`text-lg font-bold ${getQualityColor(bucket.range)}`}
+                            >
+                              {bucket.count}
                             </div>
-                            <div className="w-32 text-right text-sm text-white">
+                            <div className="text-xs text-gray-500">
+                              {bucket.range}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {bucket.percentage.toFixed(0)}%
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <DrillDownLink
+                        label="View all sessions by quality"
+                        onClick={() => navigateWithFilter({})}
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-center py-4">
+                      No quality distribution data yet.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No figures available for this time range.
+                </div>
+              )
+            }
+            tables={
+              successTrend.length > 0 || qualityDist.length > 0 ? (
+                <div className="space-y-4 text-xs">
+                  {successTrend.length > 0 && (
+                    <table className="w-full">
+                      <thead className="text-gray-500 border-b border-gray-700">
+                        <tr>
+                          <th className="text-left py-1">Date</th>
+                          <th className="text-right py-1">Total</th>
+                          <th className="text-right py-1">Success</th>
+                          <th className="text-right py-1">Failed</th>
+                          <th className="text-right py-1">Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-300">
+                        {successTrend.map((point) => (
+                          <tr
+                            key={point.date}
+                            className="border-b border-gray-800"
+                          >
+                            <td className="py-1">{point.date}</td>
+                            <td className="py-1 text-right">{point.total}</td>
+                            <td className="py-1 text-right">
+                              {point.success_count}
+                            </td>
+                            <td className="py-1 text-right">
+                              {point.failure_count}
+                            </td>
+                            <td className="py-1 text-right">
+                              {Math.round(point.rate)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {qualityDist.length > 0 && (
+                    <table className="w-full">
+                      <thead className="text-gray-500 border-b border-gray-700">
+                        <tr>
+                          <th className="text-left py-1">Range</th>
+                          <th className="text-right py-1">Count</th>
+                          <th className="text-right py-1">Percent</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-300">
+                        {qualityDist.map((bucket) => (
+                          <tr key={bucket.range}>
+                            <td className="py-1">{bucket.range}</td>
+                            <td className="py-1 text-right">{bucket.count}</td>
+                            <td className="py-1 text-right">
+                              {bucket.percentage.toFixed(0)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No table data available for this time range.
+                </div>
+              )
+            }
+          />
+          <TransparencyDetails
+            label="How quality trends are calculated"
+            calculations={[
+              "Daily success bars show total sessions per day; green portion is success_count / total.",
+              "Success is quality score >= 60; failure is quality score < 40.",
+              "Quality distribution buckets are 0-25, 25-50, 50-75, 75-100.",
+              "Percentiles are computed from all available quality scores."
+            ]}
+            data={{
+              transcript_days: transcriptDays,
+              success_trend: successTrend,
+              quality_distribution: qualityDist,
+              quality_percentiles: qualityPercentiles
+            }}
+          />
+        </QuestionSection>
+
+        {/* ================================================================= */}
+        {/* Q3: Where are my tokens going? */}
+        {/* ================================================================= */}
+        <QuestionSection
+          question="Where are my tokens going?"
+          description="Token usage breakdown by task type and project"
+        >
+          <QuestionTabs
+            stats={
+              dashboard ? (
+                <>
+                  <div className="mb-4">
+                    <HeroMetric
+                      value={
+                        <TokenCost
+                          tokens={totalTokens}
+                          usd={dashboard.summary.total_cost_usd}
+                        />
+                      }
+                      label="Total Tokens"
+                      subtext={
+                        <TokenCost
+                          tokens={Math.round(tokensPerDay)}
+                          usd={costPerDay}
+                          suffix={`per day avg over ${transcriptDays} days`}
+                        />
+                      }
+                      color="blue"
+                      tooltip="Estimated from token counts. May differ from actual billing."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <MetricBox
+                      label="Avg Tokens / Session"
+                      value={
+                        <TokenCost
+                          tokens={
+                            dashboard.summary.total_sessions > 0
+                              ? Math.round(
+                                  totalTokens / dashboard.summary.total_sessions
+                                )
+                              : 0
+                          }
+                          usd={avgCostPerSession}
+                        />
+                      }
+                    />
+                    <MetricBox
+                      label="Top Task Type"
+                      value={topCostType?.task_type ?? "-"}
+                      subtext={
+                        topCostType ? (
+                          <TokenCost
+                            tokens={sumTokens(
+                              topCostType.total_input_tokens,
+                              topCostType.total_output_tokens
+                            )}
+                            usd={topCostType.total_cost_usd}
+                          />
+                        ) : (
+                          "No task type data"
+                        )
+                      }
+                    />
+                    <MetricBox
+                      label="Top Project"
+                      value={topProjectByCost?.project_name ?? "-"}
+                      subtext={
+                        topProjectByCost ? (
+                          <TokenCost
+                            tokens={sumTokens(
+                              topProjectByCost.total_input_tokens,
+                              topProjectByCost.total_output_tokens
+                            )}
+                            usd={topProjectByCost.total_cost_usd}
+                          />
+                        ) : (
+                          "No project data"
+                        )
+                      }
+                    />
+                    <MetricBox
+                      label="Unassigned Tokens"
+                      value={
+                        <TokenCost
+                          tokens={sumTokens(
+                            unassignedProjects.total_input_tokens,
+                            unassignedProjects.total_output_tokens
+                          )}
+                          usd={unassignedProjects.total_cost_usd}
+                        />
+                      }
+                      subtext={`${unassignedProjects.session_count} sessions`}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No token summary available for this time range.
+                </div>
+              )
+            }
+            figures={
+              costByType.length > 0 || projectsByCost.length > 0 ? (
+                <div className="space-y-4">
+                  {costByType.length > 0 ? (
+                    <div>
+                      <div className="text-sm text-gray-400 mb-2">
+                        By Task Type{" "}
+                        <span
+                          className="text-[10px] text-gray-600 font-normal"
+                          title="Task types are auto-inferred from tool usage patterns (e.g., running tests = 'test', editing .md files = 'docs')"
+                        >
+                          (auto-inferred)
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {costByType.map((item) => {
+                          const barWidth =
+                            (item.total_cost_usd / maxCostByType) * 100;
+                          const colorClass =
+                            TASK_TYPE_COLORS[item.task_type] || "bg-gray-500";
+
+                          return (
+                            <div
+                              key={item.task_type}
+                              className="flex items-center gap-3 cursor-pointer hover:bg-gray-700/50 rounded p-1 -m-1"
+                              onClick={() =>
+                                navigateWithFilter({ taskType: item.task_type })
+                              }
+                            >
+                              <Badge
+                                label={item.task_type}
+                                color={colorClass}
+                              />
+                              <div className="flex-1">
+                                <div
+                                  className={`h-4 rounded ${colorClass}`}
+                                  style={{
+                                    width: `${barWidth}%`,
+                                    minWidth: "4px"
+                                  }}
+                                />
+                              </div>
+                              <div className="w-32 text-right text-sm text-white">
+                                <TokenCost
+                                  tokens={sumTokens(
+                                    item.total_input_tokens,
+                                    item.total_output_tokens
+                                  )}
+                                  usd={item.total_cost_usd}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-center py-4">
+                      No task type token data yet.
+                    </div>
+                  )}
+                  {projectsByCost.length > 0 ? (
+                    <div className="bg-gray-700/50 rounded p-3">
+                      <div className="text-sm text-gray-400 mb-2">
+                        Top Projects by Tokens
+                      </div>
+                      <div className="space-y-2">
+                        {projectsByCost.slice(0, 5).map((project) => {
+                          const barWidth =
+                            (project.total_cost_usd / maxProjectCost) * 100;
+                          return (
+                            <div
+                              key={project.project_id}
+                              className="flex items-center gap-3"
+                            >
+                              <span className="text-xs text-gray-300 truncate w-28">
+                                {project.project_name}
+                              </span>
+                              <div className="flex-1 bg-gray-800 rounded h-3">
+                                <div
+                                  className="h-3 rounded bg-blue-500"
+                                  style={{ width: `${barWidth}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-gray-400 w-24 text-right">
+                                <TokenCost
+                                  tokens={sumTokens(
+                                    project.total_input_tokens,
+                                    project.total_output_tokens
+                                  )}
+                                  usd={project.total_cost_usd}
+                                />
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-center py-4">
+                      No project token data yet.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No figures available for this time range.
+                </div>
+              )
+            }
+            tables={
+              costByType.length > 0 || projectsByCost.length > 0 ? (
+                <div className="space-y-4 text-xs">
+                  {costByType.length > 0 && (
+                    <table className="w-full">
+                      <thead className="text-gray-500 border-b border-gray-700">
+                        <tr>
+                          <th className="text-left py-1">Task Type</th>
+                          <th className="text-right py-1">Sessions</th>
+                          <th className="text-right py-1">Tokens</th>
+                          <th className="text-right py-1">Avg Tokens</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-300">
+                        {costByType.map((item) => (
+                          <tr key={item.task_type}>
+                            <td className="py-1">{item.task_type}</td>
+                            <td className="py-1 text-right">
+                              {item.session_count}
+                            </td>
+                            <td className="py-1 text-right">
                               <TokenCost
                                 tokens={sumTokens(
                                   item.total_input_tokens,
@@ -1458,41 +1583,42 @@ export function AnalyticsPane({
                                 )}
                                 usd={item.total_cost_usd}
                               />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-center py-4">
-                    No task type token data yet.
-                  </div>
-                )}
-                {projectsByCost.length > 0 ? (
-                  <div className="bg-gray-700/50 rounded p-3">
-                    <div className="text-sm text-gray-400 mb-2">
-                      Top Projects by Tokens
-                    </div>
-                    <div className="space-y-2">
-                      {projectsByCost.slice(0, 5).map((project) => {
-                        const barWidth =
-                          (project.total_cost_usd / maxProjectCost) * 100;
-                        return (
-                          <div
-                            key={project.project_id}
-                            className="flex items-center gap-3"
-                          >
-                            <span className="text-xs text-gray-300 truncate w-28">
-                              {project.project_name}
-                            </span>
-                            <div className="flex-1 bg-gray-800 rounded h-3">
-                              <div
-                                className="h-3 rounded bg-blue-500"
-                                style={{ width: `${barWidth}%` }}
+                            </td>
+                            <td className="py-1 text-right">
+                              <TokenCost
+                                tokens={Math.round(
+                                  sumTokens(
+                                    item.total_input_tokens,
+                                    item.total_output_tokens
+                                  ) / Math.max(item.session_count, 1)
+                                )}
+                                usd={item.avg_cost_usd}
                               />
-                            </div>
-                            <span className="text-xs text-gray-400 w-24 text-right">
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {(projectsByCost.length > 0 ||
+                    unassignedProjects.session_count > 0) && (
+                    <table className="w-full">
+                      <thead className="text-gray-500 border-b border-gray-700">
+                        <tr>
+                          <th className="text-left py-1">Project</th>
+                          <th className="text-right py-1">Sessions</th>
+                          <th className="text-right py-1">Tokens</th>
+                          <th className="text-right py-1">Success</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-300">
+                        {projectsByCost.map((project) => (
+                          <tr key={project.project_id}>
+                            <td className="py-1">{project.project_name}</td>
+                            <td className="py-1 text-right">
+                              {project.session_count}
+                            </td>
+                            <td className="py-1 text-right">
                               <TokenCost
                                 tokens={sumTokens(
                                   project.total_input_tokens,
@@ -1500,475 +1626,553 @@ export function AnalyticsPane({
                                 )}
                                 usd={project.total_cost_usd}
                               />
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-center py-4">
-                    No project token data yet.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No figures available for this time range.
-              </div>
-            )
-          }
-          tables={
-            costByType.length > 0 || projectsByCost.length > 0 ? (
-              <div className="space-y-4 text-xs">
-                {costByType.length > 0 && (
-                  <table className="w-full">
-                    <thead className="text-gray-500 border-b border-gray-700">
-                      <tr>
-                        <th className="text-left py-1">Task Type</th>
-                        <th className="text-right py-1">Sessions</th>
-                        <th className="text-right py-1">Tokens</th>
-                        <th className="text-right py-1">Avg Tokens</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-300">
-                      {costByType.map((item) => (
-                        <tr key={item.task_type}>
-                          <td className="py-1">{item.task_type}</td>
-                          <td className="py-1 text-right">
-                            {item.session_count}
-                          </td>
-                          <td className="py-1 text-right">
-                            <TokenCost
-                              tokens={sumTokens(
-                                item.total_input_tokens,
-                                item.total_output_tokens
-                              )}
-                              usd={item.total_cost_usd}
-                            />
-                          </td>
-                          <td className="py-1 text-right">
-                            <TokenCost
-                              tokens={Math.round(
-                                sumTokens(
-                                  item.total_input_tokens,
-                                  item.total_output_tokens
-                                ) / Math.max(item.session_count, 1)
-                              )}
-                              usd={item.avg_cost_usd}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                {(projectsByCost.length > 0 ||
-                  unassignedProjects.session_count > 0) && (
-                  <table className="w-full">
-                    <thead className="text-gray-500 border-b border-gray-700">
-                      <tr>
-                        <th className="text-left py-1">Project</th>
-                        <th className="text-right py-1">Sessions</th>
-                        <th className="text-right py-1">Tokens</th>
-                        <th className="text-right py-1">Success</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-300">
-                      {projectsByCost.map((project) => (
-                        <tr key={project.project_id}>
-                          <td className="py-1">{project.project_name}</td>
-                          <td className="py-1 text-right">
-                            {project.session_count}
-                          </td>
-                          <td className="py-1 text-right">
-                            <TokenCost
-                              tokens={sumTokens(
-                                project.total_input_tokens,
-                                project.total_output_tokens
-                              )}
-                              usd={project.total_cost_usd}
-                            />
-                          </td>
-                          <td className="py-1 text-right">
-                            {project.success_count}
-                          </td>
-                        </tr>
-                      ))}
-                      {unassignedProjects.session_count > 0 && (
-                        <tr className="text-gray-500">
-                          <td className="py-1 italic">Unassigned</td>
-                          <td className="py-1 text-right">
-                            {unassignedProjects.session_count}
-                          </td>
-                          <td className="py-1 text-right">
-                            <TokenCost
-                              tokens={sumTokens(
-                                unassignedProjects.total_input_tokens,
-                                unassignedProjects.total_output_tokens
-                              )}
-                              usd={unassignedProjects.total_cost_usd}
-                            />
-                          </td>
-                          <td className="py-1 text-right">
-                            {unassignedProjects.success_count}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No table data available for this time range.
-              </div>
-            )
-          }
-        />
-        <TransparencyDetails
-          label="How token breakdowns are calculated"
-          calculations={[
-            "Total tokens are input + output tokens for hook sessions plus local transcripts in range (when usage is available).",
-            "USD shown is a rough estimate derived from token counts.",
-            "Token breakdown by task type uses autoTags.taskType from enrichments; avg_cost_usd = total_cost_usd / session_count.",
-            "Bar width scales each task type by total tokens / max(total tokens).",
-            "Project totals come from /analytics/by-project and include unassigned sessions."
-          ]}
-          data={{
-            transcript_days: transcriptDays,
-            total_cost_usd: dashboard?.summary.total_cost_usd ?? null,
-            total_input_tokens: dashboard?.summary.total_input_tokens ?? null,
-            total_output_tokens: dashboard?.summary.total_output_tokens ?? null,
-            cost_by_type: costByType,
-            project_analytics: projectAnalytics
-          }}
-        />
-      </QuestionSection>
-
-      {/* ================================================================= */}
-      {/* Q4: Which tools are most/least effective? */}
-      {/* ================================================================= */}
-      <QuestionSection
-        question="Which tools are most effective?"
-        description="Tool usage patterns, success rates, and failures"
-      >
-        <QuestionTabs
-          stats={
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricBox
-                label="Total Tool Calls"
-                value={formatNumber(toolAggregates.totalCalls)}
-              />
-              <MetricBox
-                label="Success Rate"
-                value={`${Math.round(toolAggregates.overallSuccessRate)}%`}
-                color={
-                  toolAggregates.overallSuccessRate >= 95
-                    ? "green"
-                    : toolAggregates.overallSuccessRate >= 85
-                      ? "yellow"
-                      : "red"
-                }
-              />
-              <MetricBox
-                label="Most Used"
-                value={mostUsedTool?.tool_name || "-"}
-                subtext={
-                  mostUsedTool
-                    ? `${formatNumber(mostUsedTool.total_calls)} calls`
-                    : undefined
-                }
-              />
-              <MetricBox
-                label="Most Failures"
-                value={mostFailedTool?.tool_name || "None"}
-                subtext={
-                  mostFailedTool
-                    ? `${mostFailedTool.failure_count} failures`
-                    : undefined
-                }
-                color={mostFailedTool ? "red" : undefined}
-              />
-            </div>
-          }
-          figures={
-            sortedTools.length > 0 ? (
-              <div>
-                <div className="text-sm text-gray-400 mb-2">
-                  Top Tools by Volume
+                            </td>
+                            <td className="py-1 text-right">
+                              {project.success_count}
+                            </td>
+                          </tr>
+                        ))}
+                        {unassignedProjects.session_count > 0 && (
+                          <tr className="text-gray-500">
+                            <td className="py-1 italic">Unassigned</td>
+                            <td className="py-1 text-right">
+                              {unassignedProjects.session_count}
+                            </td>
+                            <td className="py-1 text-right">
+                              <TokenCost
+                                tokens={sumTokens(
+                                  unassignedProjects.total_input_tokens,
+                                  unassignedProjects.total_output_tokens
+                                )}
+                                usd={unassignedProjects.total_cost_usd}
+                              />
+                            </td>
+                            <td className="py-1 text-right">
+                              {unassignedProjects.success_count}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  {sortedTools.slice(0, 8).map((tool) => {
-                    const barWidth = (tool.total_calls / maxToolCalls) * 100;
-                    const rateColor =
-                      tool.success_rate >= 95
-                        ? "bg-green-500"
-                        : tool.success_rate >= 85
-                          ? "bg-yellow-500"
-                          : "bg-red-500";
-
-                    return (
-                      <div
-                        key={tool.tool_name}
-                        className="flex items-center gap-3"
-                      >
-                        <span className="text-xs text-gray-300 w-32 truncate font-mono">
-                          {tool.tool_name}
-                        </span>
-                        <div className="flex-1 bg-gray-800 rounded h-3">
-                          <div
-                            className={`h-3 rounded ${rateColor}`}
-                            style={{ width: `${barWidth}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-400 w-12 text-right">
-                          {formatNumber(tool.total_calls)}
-                        </span>
-                        <span className="text-xs text-gray-500 w-10 text-right">
-                          {Math.round(tool.success_rate)}%
-                        </span>
-                      </div>
-                    );
-                  })}
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No table data available for this time range.
                 </div>
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No tool usage figures yet.
-              </div>
-            )
-          }
-          tables={
-            toolStats.length > 0 || (toolRetries?.patterns?.length ?? 0) > 0 ? (
-              <div className="space-y-4">
-                {toolStats.length > 0 && (
-                  <div>
-                    <div className="text-sm text-gray-400 mb-2">
-                      Tool Breakdown (top 15)
-                    </div>
-                    <div className="text-xs">
-                      <div className="grid grid-cols-12 gap-1 text-gray-500 pb-1 border-b border-gray-700">
-                        <div className="col-span-3">Tool</div>
-                        <div className="col-span-2 text-right">Calls</div>
-                        <div className="col-span-2 text-right">Success</div>
-                        <div className="col-span-2 text-right">Failed</div>
-                        <div className="col-span-2 text-right">Avg Time</div>
-                        <div className="col-span-1 text-right">Rate</div>
-                      </div>
-                      {sortedTools.slice(0, 15).map((tool) => {
-                        const rateColor =
-                          tool.success_rate >= 95
-                            ? "text-green-400"
-                            : tool.success_rate >= 85
-                              ? "text-yellow-400"
-                              : "text-red-400";
+              )
+            }
+          />
+          <TransparencyDetails
+            label="How token breakdowns are calculated"
+            calculations={[
+              "Total tokens are input + output tokens for hook sessions plus local transcripts in range (when usage is available).",
+              "USD shown is a rough estimate derived from token counts.",
+              "Token breakdown by task type uses autoTags.taskType from enrichments; avg_cost_usd = total_cost_usd / session_count.",
+              "Bar width scales each task type by total tokens / max(total tokens).",
+              "Project totals come from /analytics/by-project and include unassigned sessions."
+            ]}
+            data={{
+              transcript_days: transcriptDays,
+              total_cost_usd: dashboard?.summary.total_cost_usd ?? null,
+              total_input_tokens: dashboard?.summary.total_input_tokens ?? null,
+              total_output_tokens:
+                dashboard?.summary.total_output_tokens ?? null,
+              cost_by_type: costByType,
+              project_analytics: projectAnalytics
+            }}
+          />
+        </QuestionSection>
 
-                        return (
-                          <div
-                            key={tool.tool_name}
-                            className="grid grid-cols-12 gap-1 py-1 hover:bg-gray-700/30"
-                          >
-                            <div className="col-span-3 text-gray-200 font-mono truncate">
-                              {tool.tool_name}
-                            </div>
-                            <div className="col-span-2 text-right text-gray-300">
-                              {formatNumber(tool.total_calls)}
-                            </div>
-                            <div className="col-span-2 text-right text-green-400">
-                              {formatNumber(tool.success_count)}
-                            </div>
-                            <div className="col-span-2 text-right text-red-400">
-                              {tool.failure_count > 0
-                                ? formatNumber(tool.failure_count)
-                                : "-"}
-                            </div>
-                            <div className="col-span-2 text-right text-gray-400">
-                              {formatDuration(tool.avg_duration_ms)}
-                            </div>
-                            <div
-                              className={`col-span-1 text-right ${rateColor}`}
-                            >
-                              {Math.round(tool.success_rate)}%
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                {toolRetries?.patterns && toolRetries.patterns.length > 0 && (
-                  <table className="w-full text-xs">
-                    <thead className="text-gray-500 border-b border-gray-700">
-                      <tr>
-                        <th className="text-left py-1">Tool</th>
-                        <th className="text-right py-1">Failures</th>
-                        <th className="text-right py-1">Rate</th>
-                        <th className="text-right py-1">Common Errors</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-300">
-                      {toolRetries.patterns.map((pattern) => (
-                        <tr key={pattern.tool_name}>
-                          <td className="py-1 font-mono">
-                            {pattern.tool_name}
-                          </td>
-                          <td className="py-1 text-right">
-                            {pattern.failures}
-                          </td>
-                          <td className="py-1 text-right">
-                            {pattern.failure_rate}%
-                          </td>
-                          <td className="py-1 text-right text-gray-500">
-                            {pattern.common_errors?.length
-                              ? pattern.common_errors.slice(0, 2).join(", ")
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No table data available for this time range.
-              </div>
-            )
-          }
-        />
-        <TransparencyDetails
-          label="How tool effectiveness is calculated"
-          calculations={[
-            "Total tool calls is the sum of total_calls across tools.",
-            "Overall success rate is sum(success_count) / sum(total_calls).",
-            "Most used is the tool with max total_calls; most failures has max failure_count.",
-            "Failure patterns come from /analytics/tool-retries (hook sessions only)."
-          ]}
-          data={{
-            tool_stats: toolStats,
-            tool_retries: toolRetries,
-            aggregates: toolAggregates,
-            most_used_tool: mostUsedTool ?? null,
-            most_failed_tool: mostFailedTool ?? null
-          }}
-        />
-      </QuestionSection>
-
-      {/* ================================================================= */}
-      {/* Q5: How efficient is my agent? */}
-      {/* ================================================================= */}
-      <QuestionSection
-        question="How efficient is my agent?"
-        description="Loop detection and wasted effort analysis"
-      >
-        <QuestionTabs
-          stats={
-            loopsAnalytics ? (
+        {/* ================================================================= */}
+        {/* Q4: Which tools are most/least effective? */}
+        {/* ================================================================= */}
+        <QuestionSection
+          question="Which tools are most effective?"
+          description="Tool usage patterns, success rates, and failures"
+        >
+          <QuestionTabs
+            stats={
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <MetricBox
-                  label="Sessions with Loops"
-                  value={loopsAnalytics.sessions_with_loops}
+                  label="Total Tool Calls"
+                  value={formatNumber(toolAggregates.totalCalls)}
+                />
+                <MetricBox
+                  label="Success Rate"
+                  value={`${Math.round(toolAggregates.overallSuccessRate)}%`}
                   color={
-                    loopsAnalytics.sessions_with_loops > 5
-                      ? "yellow"
+                    toolAggregates.overallSuccessRate >= 95
+                      ? "green"
+                      : toolAggregates.overallSuccessRate >= 85
+                        ? "yellow"
+                        : "red"
+                  }
+                />
+                <MetricBox
+                  label="Most Used"
+                  value={mostUsedTool?.tool_name || "-"}
+                  subtext={
+                    mostUsedTool
+                      ? `${formatNumber(mostUsedTool.total_calls)} calls`
                       : undefined
                   }
                 />
                 <MetricBox
-                  label="Total Loops"
-                  value={loopsAnalytics.total_loops}
-                  color={loopsAnalytics.total_loops > 10 ? "red" : undefined}
-                />
-                <MetricBox
-                  label="Total Retries"
-                  value={loopsAnalytics.total_retries}
-                />
-                <MetricBox
-                  label="Efficiency"
-                  value={
-                    efficiencyPercent !== null ? `${efficiencyPercent}%` : "-"
+                  label="Most Failures"
+                  value={mostFailedTool?.tool_name || "None"}
+                  subtext={
+                    mostFailedTool
+                      ? `${mostFailedTool.failure_count} failures`
+                      : undefined
                   }
-                  subtext="Sessions without loops"
-                  color="green"
+                  color={mostFailedTool ? "red" : undefined}
                 />
               </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No loop analytics available for this time range.
-              </div>
-            )
-          }
-          figures={
-            loopsAnalytics ? (
-              loopPatternEntries.length > 0 ? (
-                <div className="bg-gray-700/50 rounded p-3">
+            }
+            figures={
+              sortedTools.length > 0 ? (
+                <div>
                   <div className="text-sm text-gray-400 mb-2">
-                    Loop Patterns Detected
+                    Top Tools by Volume
                   </div>
                   <div className="space-y-2">
-                    {loopPatternEntries.map(([type, count]) => {
-                      const barWidth = (count / maxLoopPatternCount) * 100;
-                      const colorClass =
-                        PATTERN_TYPE_COLORS[type] || "bg-gray-500";
+                    {sortedTools.slice(0, 8).map((tool) => {
+                      const barWidth = (tool.total_calls / maxToolCalls) * 100;
+                      const rateColor =
+                        tool.success_rate >= 95
+                          ? "bg-green-500"
+                          : tool.success_rate >= 85
+                            ? "bg-yellow-500"
+                            : "bg-red-500";
+
                       return (
-                        <div key={type} className="flex items-center gap-3">
-                          <span className="text-xs text-gray-300 w-32 truncate">
-                            {type.replace(/_/g, " ")}
+                        <div
+                          key={tool.tool_name}
+                          className="flex items-center gap-3"
+                        >
+                          <span className="text-xs text-gray-300 w-32 truncate font-mono">
+                            {tool.tool_name}
                           </span>
                           <div className="flex-1 bg-gray-800 rounded h-3">
                             <div
-                              className={`h-3 rounded ${colorClass}`}
+                              className={`h-3 rounded ${rateColor}`}
                               style={{ width: `${barWidth}%` }}
                             />
                           </div>
-                          <span className="text-xs text-gray-400 w-10 text-right">
-                            {count}
+                          <span className="text-xs text-gray-400 w-12 text-right">
+                            {formatNumber(tool.total_calls)}
+                          </span>
+                          <span className="text-xs text-gray-500 w-10 text-right">
+                            {Math.round(tool.success_rate)}%
                           </span>
                         </div>
                       );
                     })}
                   </div>
-                  <div className="text-xs text-gray-500 mt-3 space-y-1">
-                    {Object.entries(PATTERN_DESCRIPTIONS).map(
-                      ([type, description]) => (
-                        <p key={type}>
-                          <strong>{type}:</strong> {description}
-                        </p>
-                      )
-                    )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No tool usage figures yet.
+                </div>
+              )
+            }
+            tables={
+              toolStats.length > 0 ||
+              (toolRetries?.patterns?.length ?? 0) > 0 ? (
+                <div className="space-y-4">
+                  {toolStats.length > 0 && (
+                    <div>
+                      <div className="text-sm text-gray-400 mb-2">
+                        Tool Breakdown (top 15)
+                      </div>
+                      <div className="text-xs">
+                        <div className="grid grid-cols-12 gap-1 text-gray-500 pb-1 border-b border-gray-700">
+                          <div className="col-span-3">Tool</div>
+                          <div className="col-span-2 text-right">Calls</div>
+                          <div className="col-span-2 text-right">Success</div>
+                          <div className="col-span-2 text-right">Failed</div>
+                          <div className="col-span-2 text-right">Avg Time</div>
+                          <div className="col-span-1 text-right">Rate</div>
+                        </div>
+                        {sortedTools.slice(0, 15).map((tool) => {
+                          const rateColor =
+                            tool.success_rate >= 95
+                              ? "text-green-400"
+                              : tool.success_rate >= 85
+                                ? "text-yellow-400"
+                                : "text-red-400";
+
+                          return (
+                            <div
+                              key={tool.tool_name}
+                              className="grid grid-cols-12 gap-1 py-1 hover:bg-gray-700/30"
+                            >
+                              <div className="col-span-3 text-gray-200 font-mono truncate">
+                                {tool.tool_name}
+                              </div>
+                              <div className="col-span-2 text-right text-gray-300">
+                                {formatNumber(tool.total_calls)}
+                              </div>
+                              <div className="col-span-2 text-right text-green-400">
+                                {formatNumber(tool.success_count)}
+                              </div>
+                              <div className="col-span-2 text-right text-red-400">
+                                {tool.failure_count > 0
+                                  ? formatNumber(tool.failure_count)
+                                  : "-"}
+                              </div>
+                              <div className="col-span-2 text-right text-gray-400">
+                                {formatDuration(tool.avg_duration_ms)}
+                              </div>
+                              <div
+                                className={`col-span-1 text-right ${rateColor}`}
+                              >
+                                {Math.round(tool.success_rate)}%
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {toolRetries?.patterns && toolRetries.patterns.length > 0 && (
+                    <table className="w-full text-xs">
+                      <thead className="text-gray-500 border-b border-gray-700">
+                        <tr>
+                          <th className="text-left py-1">Tool</th>
+                          <th className="text-right py-1">Failures</th>
+                          <th className="text-right py-1">Rate</th>
+                          <th className="text-right py-1">Common Errors</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-300">
+                        {toolRetries.patterns.map((pattern) => (
+                          <tr key={pattern.tool_name}>
+                            <td className="py-1 font-mono">
+                              {pattern.tool_name}
+                            </td>
+                            <td className="py-1 text-right">
+                              {pattern.failures}
+                            </td>
+                            <td className="py-1 text-right">
+                              {pattern.failure_rate}%
+                            </td>
+                            <td className="py-1 text-right text-gray-500">
+                              {pattern.common_errors?.length
+                                ? pattern.common_errors.slice(0, 2).join(", ")
+                                : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No table data available for this time range.
+                </div>
+              )
+            }
+          />
+          <TransparencyDetails
+            label="How tool effectiveness is calculated"
+            calculations={[
+              "Total tool calls is the sum of total_calls across tools.",
+              "Overall success rate is sum(success_count) / sum(total_calls).",
+              "Most used is the tool with max total_calls; most failures has max failure_count.",
+              "Failure patterns come from /analytics/tool-retries (hook sessions only)."
+            ]}
+            data={{
+              tool_stats: toolStats,
+              tool_retries: toolRetries,
+              aggregates: toolAggregates,
+              most_used_tool: mostUsedTool ?? null,
+              most_failed_tool: mostFailedTool ?? null
+            }}
+          />
+        </QuestionSection>
+
+        {/* ================================================================= */}
+        {/* Q5: How efficient is my agent? */}
+        {/* ================================================================= */}
+        <QuestionSection
+          question="How efficient is my agent?"
+          description="Loop detection and wasted effort analysis"
+        >
+          <QuestionTabs
+            stats={
+              loopsAnalytics ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <MetricBox
+                    label="Sessions with Loops"
+                    value={loopsAnalytics.sessions_with_loops}
+                    color={
+                      loopsAnalytics.sessions_with_loops > 5
+                        ? "yellow"
+                        : undefined
+                    }
+                  />
+                  <MetricBox
+                    label="Total Loops"
+                    value={loopsAnalytics.total_loops}
+                    color={loopsAnalytics.total_loops > 10 ? "red" : undefined}
+                  />
+                  <MetricBox
+                    label="Total Retries"
+                    value={loopsAnalytics.total_retries}
+                  />
+                  <MetricBox
+                    label="Efficiency"
+                    value={
+                      efficiencyPercent !== null ? `${efficiencyPercent}%` : "-"
+                    }
+                    subtext="Sessions without loops"
+                    color="green"
+                  />
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No loop analytics available for this time range.
+                </div>
+              )
+            }
+            figures={
+              loopsAnalytics ? (
+                loopPatternEntries.length > 0 ? (
+                  <div className="bg-gray-700/50 rounded p-3">
+                    <div className="text-sm text-gray-400 mb-2">
+                      Loop Patterns Detected
+                    </div>
+                    <div className="space-y-2">
+                      {loopPatternEntries.map(([type, count]) => {
+                        const barWidth = (count / maxLoopPatternCount) * 100;
+                        const colorClass =
+                          PATTERN_TYPE_COLORS[type] || "bg-gray-500";
+                        return (
+                          <div key={type} className="flex items-center gap-3">
+                            <span className="text-xs text-gray-300 w-32 truncate">
+                              {type.replace(/_/g, " ")}
+                            </span>
+                            <div className="flex-1 bg-gray-800 rounded h-3">
+                              <div
+                                className={`h-3 rounded ${colorClass}`}
+                                style={{ width: `${barWidth}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-400 w-10 text-right">
+                              {count}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-3 space-y-1">
+                      {Object.entries(PATTERN_DESCRIPTIONS).map(
+                        ([type, description]) => (
+                          <p key={type}>
+                            <strong>{type}:</strong> {description}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-center py-6">
+                    No loop patterns detected yet.
+                  </div>
+                )
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No figures available for this time range.
+                </div>
+              )
+            }
+            tables={
+              loopsAnalytics ? (
+                loopPatternEntries.length > 0 ? (
+                  <table className="w-full text-xs">
+                    <thead className="text-gray-500 border-b border-gray-700">
+                      <tr>
+                        <th className="text-left py-1">Pattern</th>
+                        <th className="text-right py-1">Count</th>
+                        <th className="text-right py-1">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-gray-300">
+                      {loopPatternEntries.map(([type, count]) => (
+                        <tr key={type}>
+                          <td className="py-1">{type}</td>
+                          <td className="py-1 text-right">{count}</td>
+                          <td className="py-1 text-right text-gray-500">
+                            {PATTERN_DESCRIPTIONS[type] ?? "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-gray-500 text-center py-6">
+                    No table data available for this time range.
+                  </div>
+                )
+              ) : (
+                <div className="text-gray-500 text-center py-6">
+                  No table data available for this time range.
+                </div>
+              )
+            }
+          />
+          <TransparencyDetails
+            label="How loop efficiency is calculated"
+            calculations={[
+              "Sessions with loops count sessions that include loopDetection patterns.",
+              "Efficiency = 100 - (sessions_with_loops / total_sessions) * 100.",
+              "Pattern counts are aggregated by loopDetection.patternType."
+            ]}
+            data={{
+              transcript_days: transcriptDays,
+              loops: loopsAnalytics,
+              total_sessions: dashboard?.summary.total_sessions ?? null,
+              derived: {
+                efficiency_percent: efficiencyPercent
+              }
+            }}
+          />
+        </QuestionSection>
+
+        {/* ================================================================= */}
+        {/* Q6: How does my usage vary by day? */}
+        {/* ================================================================= */}
+        <QuestionSection
+          question="How does my usage vary by day?"
+          description="Daily activity patterns and trends"
+        >
+          <QuestionTabs
+            stats={
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MetricBox
+                  label="Avg Sessions/Day"
+                  value={dailyAggregates.avgSessionsPerDay.toFixed(1)}
+                />
+                <MetricBox
+                  label="This Week"
+                  value={weekStats.sessionsThisWeek}
+                  subtext={
+                    weekStats.weekOverWeekChange !== 0
+                      ? `${weekStats.weekOverWeekChange > 0 ? "+" : ""}${weekStats.weekOverWeekChange} vs last week`
+                      : undefined
+                  }
+                  color={
+                    weekStats.weekOverWeekChange > 0
+                      ? "green"
+                      : weekStats.weekOverWeekChange < 0
+                        ? "yellow"
+                        : undefined
+                  }
+                />
+                <MetricBox
+                  label="Total Tool Calls"
+                  value={formatNumber(dailyAggregates.totalToolCalls)}
+                />
+                <MetricBox
+                  label="Active Days"
+                  value={dailyStats.filter((d) => d.session_count > 0).length}
+                  subtext={`of ${dailyStats.length} days`}
+                />
+              </div>
+            }
+            figures={
+              dailyStats.length > 0 ? (
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-sm text-gray-400 mb-2">
+                      Sessions per Day
+                    </div>
+                    <div className="flex items-end gap-1 h-20">
+                      {dailyStats.map((day, i) => {
+                        const maxSessions = Math.max(
+                          ...dailyStats.map((d) => d.session_count),
+                          1
+                        );
+                        const height = (day.session_count / maxSessions) * 100;
+
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1 flex flex-col items-center"
+                            title={`${day.date}: ${day.session_count} sessions, ${day.tool_calls} tool calls`}
+                          >
+                            <div
+                              className="w-full bg-blue-500 rounded-t"
+                              style={{
+                                height: `${Math.max(height, day.session_count > 0 ? 4 : 0)}%`
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>
+                        {dailyStats[dailyStats.length - 1]?.date.slice(5)}
+                      </span>
+                      <span>{dailyStats[0]?.date.slice(5)}</span>
+                    </div>
+                  </div>
+                  <div className="bg-gray-700/50 rounded p-3">
+                    <div className="text-sm text-gray-400 mb-2">
+                      Tool Calls per Day
+                    </div>
+                    <div className="flex items-end gap-1 h-16">
+                      {dailyStats.map((day, i) => {
+                        const maxCalls = Math.max(
+                          ...dailyStats.map((d) => d.tool_calls),
+                          1
+                        );
+                        const height = (day.tool_calls / maxCalls) * 100;
+
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1"
+                            title={`${day.date}: ${day.tool_calls} tool calls`}
+                          >
+                            <div
+                              className="w-full bg-purple-500 rounded-t"
+                              style={{
+                                height: `${Math.max(height, day.tool_calls > 0 ? 4 : 0)}%`
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div className="text-gray-500 text-center py-6">
-                  No loop patterns detected yet.
+                  No daily figures available for this time range.
                 </div>
               )
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No figures available for this time range.
-              </div>
-            )
-          }
-          tables={
-            loopsAnalytics ? (
-              loopPatternEntries.length > 0 ? (
+            }
+            tables={
+              dailyStats.length > 0 ? (
                 <table className="w-full text-xs">
                   <thead className="text-gray-500 border-b border-gray-700">
                     <tr>
-                      <th className="text-left py-1">Pattern</th>
-                      <th className="text-right py-1">Count</th>
-                      <th className="text-right py-1">Description</th>
+                      <th className="text-left py-1">Date</th>
+                      <th className="text-right py-1">Sessions</th>
+                      <th className="text-right py-1">Tool Calls</th>
                     </tr>
                   </thead>
                   <tbody className="text-gray-300">
-                    {loopPatternEntries.map(([type, count]) => (
-                      <tr key={type}>
-                        <td className="py-1">{type}</td>
-                        <td className="py-1 text-right">{count}</td>
-                        <td className="py-1 text-right text-gray-500">
-                          {PATTERN_DESCRIPTIONS[type] ?? "-"}
-                        </td>
+                    {dailyStats.map((day) => (
+                      <tr key={day.date}>
+                        <td className="py-1">{day.date}</td>
+                        <td className="py-1 text-right">{day.session_count}</td>
+                        <td className="py-1 text-right">{day.tool_calls}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1978,460 +2182,299 @@ export function AnalyticsPane({
                   No table data available for this time range.
                 </div>
               )
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No table data available for this time range.
-              </div>
-            )
-          }
-        />
-        <TransparencyDetails
-          label="How loop efficiency is calculated"
-          calculations={[
-            "Sessions with loops count sessions that include loopDetection patterns.",
-            "Efficiency = 100 - (sessions_with_loops / total_sessions) * 100.",
-            "Pattern counts are aggregated by loopDetection.patternType."
-          ]}
-          data={{
-            transcript_days: transcriptDays,
-            loops: loopsAnalytics,
-            total_sessions: dashboard?.summary.total_sessions ?? null,
-            derived: {
-              efficiency_percent: efficiencyPercent
             }
-          }}
-        />
-      </QuestionSection>
+          />
+          <TransparencyDetails
+            label="How daily usage metrics are calculated"
+            calculations={[
+              "Avg sessions/day = total session_count / number of days.",
+              "Week-over-week change = sessionsThisWeek - sessionsLastWeek.",
+              "Daily bar height scales by day.session_count / max(session_count).",
+              "Tool calls chart scales by day.tool_calls / max(tool_calls)."
+            ]}
+            data={{
+              transcript_days: transcriptDays,
+              daily_stats: dailyStats,
+              aggregates: dailyAggregates,
+              week_stats: weekStats
+            }}
+          />
+        </QuestionSection>
 
-      {/* ================================================================= */}
-      {/* Q6: How does my usage vary by day? */}
-      {/* ================================================================= */}
-      <QuestionSection
-        question="How does my usage vary by day?"
-        description="Daily activity patterns and trends"
-      >
-        <QuestionTabs
-          stats={
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricBox
-                label="Avg Sessions/Day"
-                value={dailyAggregates.avgSessionsPerDay.toFixed(1)}
-              />
-              <MetricBox
-                label="This Week"
-                value={weekStats.sessionsThisWeek}
-                subtext={
-                  weekStats.weekOverWeekChange !== 0
-                    ? `${weekStats.weekOverWeekChange > 0 ? "+" : ""}${weekStats.weekOverWeekChange} vs last week`
-                    : undefined
-                }
-                color={
-                  weekStats.weekOverWeekChange > 0
-                    ? "green"
-                    : weekStats.weekOverWeekChange < 0
-                      ? "yellow"
-                      : undefined
-                }
-              />
-              <MetricBox
-                label="Total Tool Calls"
-                value={formatNumber(dailyAggregates.totalToolCalls)}
-              />
-              <MetricBox
-                label="Active Days"
-                value={dailyStats.filter((d) => d.session_count > 0).length}
-                subtext={`of ${dailyStats.length} days`}
-              />
-            </div>
+        {/* ================================================================= */}
+        {/* Q7: How do my projects compare? */}
+        {/* ================================================================= */}
+        <QuestionSection
+          question="How do my projects compare?"
+          description="Activity and quality breakdown by project"
+          defaultExpanded={
+            projectAnalytics?.breakdown && projectAnalytics.breakdown.length > 0
           }
-          figures={
-            dailyStats.length > 0 ? (
-              <div className="space-y-4">
-                <div>
+        >
+          <QuestionTabs
+            stats={
+              projectAnalytics &&
+              (projectAnalytics.breakdown.length > 0 ||
+                projectAnalytics.unassigned.session_count > 0) ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <MetricBox
+                    label="Active Projects"
+                    value={projectsWithSessions}
+                    subtext={`of ${projectBreakdown.length} configured`}
+                  />
+                  <MetricBox
+                    label="Total Sessions"
+                    value={totalProjectSessions}
+                    subtext={`Unassigned: ${unassignedProjects.session_count}`}
+                  />
+                  <MetricBox
+                    label="Overall Success"
+                    value={`${Math.round(overallProjectSuccessRate)}%`}
+                    color={
+                      overallProjectSuccessRate >= 70
+                        ? "green"
+                        : overallProjectSuccessRate >= 50
+                          ? "yellow"
+                          : "red"
+                    }
+                  />
+                  <MetricBox
+                    label="Top Project"
+                    value={topProjectBySessions?.project_name ?? "-"}
+                    subtext={
+                      topProjectBySessions
+                        ? `${topProjectBySessions.session_count} sessions`
+                        : "No project data"
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-4">
+                  No projects configured. Define projects in Settings to group
+                  sessions by codebase.
+                </div>
+              )
+            }
+            figures={
+              projectAnalytics &&
+              (projectAnalytics.breakdown.length > 0 ||
+                projectAnalytics.unassigned.session_count > 0) ? (
+                <div className="space-y-3">
                   <div className="text-sm text-gray-400 mb-2">
-                    Sessions per Day
+                    Sessions by Project
                   </div>
-                  <div className="flex items-end gap-1 h-20">
-                    {dailyStats.map((day, i) => {
-                      const maxSessions = Math.max(
-                        ...dailyStats.map((d) => d.session_count),
-                        1
-                      );
-                      const height = (day.session_count / maxSessions) * 100;
-
+                  <div className="space-y-2">
+                    {projectsBySessions.slice(0, 8).map((project) => {
+                      const barWidth =
+                        (project.session_count / maxProjectSessions) * 100;
                       return (
                         <div
-                          key={i}
-                          className="flex-1 flex flex-col items-center"
-                          title={`${day.date}: ${day.session_count} sessions, ${day.tool_calls} tool calls`}
+                          key={project.project_id}
+                          className="flex items-center gap-3"
                         >
-                          <div
-                            className="w-full bg-blue-500 rounded-t"
-                            style={{
-                              height: `${Math.max(height, day.session_count > 0 ? 4 : 0)}%`
-                            }}
-                          />
+                          <span className="text-xs text-gray-300 truncate w-32">
+                            {project.project_name}
+                          </span>
+                          <div className="flex-1 bg-gray-800 rounded h-3">
+                            <div
+                              className="h-3 rounded bg-green-500"
+                              style={{ width: `${barWidth}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 w-10 text-right">
+                            {project.session_count}
+                          </span>
                         </div>
                       );
                     })}
-                  </div>
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>
-                      {dailyStats[dailyStats.length - 1]?.date.slice(5)}
-                    </span>
-                    <span>{dailyStats[0]?.date.slice(5)}</span>
-                  </div>
-                </div>
-                <div className="bg-gray-700/50 rounded p-3">
-                  <div className="text-sm text-gray-400 mb-2">
-                    Tool Calls per Day
-                  </div>
-                  <div className="flex items-end gap-1 h-16">
-                    {dailyStats.map((day, i) => {
-                      const maxCalls = Math.max(
-                        ...dailyStats.map((d) => d.tool_calls),
-                        1
-                      );
-                      const height = (day.tool_calls / maxCalls) * 100;
-
-                      return (
-                        <div
-                          key={i}
-                          className="flex-1"
-                          title={`${day.date}: ${day.tool_calls} tool calls`}
-                        >
-                          <div
-                            className="w-full bg-purple-500 rounded-t"
-                            style={{
-                              height: `${Math.max(height, day.tool_calls > 0 ? 4 : 0)}%`
-                            }}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No daily figures available for this time range.
-              </div>
-            )
-          }
-          tables={
-            dailyStats.length > 0 ? (
-              <table className="w-full text-xs">
-                <thead className="text-gray-500 border-b border-gray-700">
-                  <tr>
-                    <th className="text-left py-1">Date</th>
-                    <th className="text-right py-1">Sessions</th>
-                    <th className="text-right py-1">Tool Calls</th>
-                  </tr>
-                </thead>
-                <tbody className="text-gray-300">
-                  {dailyStats.map((day) => (
-                    <tr key={day.date}>
-                      <td className="py-1">{day.date}</td>
-                      <td className="py-1 text-right">{day.session_count}</td>
-                      <td className="py-1 text-right">{day.tool_calls}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-gray-500 text-center py-6">
-                No table data available for this time range.
-              </div>
-            )
-          }
-        />
-        <TransparencyDetails
-          label="How daily usage metrics are calculated"
-          calculations={[
-            "Avg sessions/day = total session_count / number of days.",
-            "Week-over-week change = sessionsThisWeek - sessionsLastWeek.",
-            "Daily bar height scales by day.session_count / max(session_count).",
-            "Tool calls chart scales by day.tool_calls / max(tool_calls)."
-          ]}
-          data={{
-            transcript_days: transcriptDays,
-            daily_stats: dailyStats,
-            aggregates: dailyAggregates,
-            week_stats: weekStats
-          }}
-        />
-      </QuestionSection>
-
-      {/* ================================================================= */}
-      {/* Q7: How do my projects compare? */}
-      {/* ================================================================= */}
-      <QuestionSection
-        question="How do my projects compare?"
-        description="Activity and quality breakdown by project"
-        defaultExpanded={
-          projectAnalytics?.breakdown && projectAnalytics.breakdown.length > 0
-        }
-      >
-        <QuestionTabs
-          stats={
-            projectAnalytics &&
-            (projectAnalytics.breakdown.length > 0 ||
-              projectAnalytics.unassigned.session_count > 0) ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <MetricBox
-                  label="Active Projects"
-                  value={projectsWithSessions}
-                  subtext={`of ${projectBreakdown.length} configured`}
-                />
-                <MetricBox
-                  label="Total Sessions"
-                  value={totalProjectSessions}
-                  subtext={`Unassigned: ${unassignedProjects.session_count}`}
-                />
-                <MetricBox
-                  label="Overall Success"
-                  value={`${Math.round(overallProjectSuccessRate)}%`}
-                  color={
-                    overallProjectSuccessRate >= 70
-                      ? "green"
-                      : overallProjectSuccessRate >= 50
-                        ? "yellow"
-                        : "red"
-                  }
-                />
-                <MetricBox
-                  label="Top Project"
-                  value={topProjectBySessions?.project_name ?? "-"}
-                  subtext={
-                    topProjectBySessions
-                      ? `${topProjectBySessions.session_count} sessions`
-                      : "No project data"
-                  }
-                />
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-4">
-                No projects configured. Define projects in Settings to group
-                sessions by codebase.
-              </div>
-            )
-          }
-          figures={
-            projectAnalytics &&
-            (projectAnalytics.breakdown.length > 0 ||
-              projectAnalytics.unassigned.session_count > 0) ? (
-              <div className="space-y-3">
-                <div className="text-sm text-gray-400 mb-2">
-                  Sessions by Project
-                </div>
-                <div className="space-y-2">
-                  {projectsBySessions.slice(0, 8).map((project) => {
-                    const barWidth =
-                      (project.session_count / maxProjectSessions) * 100;
-                    return (
-                      <div
-                        key={project.project_id}
-                        className="flex items-center gap-3"
-                      >
-                        <span className="text-xs text-gray-300 truncate w-32">
-                          {project.project_name}
+                    {unassignedProjects.session_count > 0 && (
+                      <div className="flex items-center gap-3 text-gray-500">
+                        <span className="text-xs truncate w-32 italic">
+                          Unassigned
                         </span>
                         <div className="flex-1 bg-gray-800 rounded h-3">
                           <div
-                            className="h-3 rounded bg-green-500"
-                            style={{ width: `${barWidth}%` }}
+                            className="h-3 rounded bg-gray-500"
+                            style={{
+                              width: `${Math.min(
+                                (unassignedProjects.session_count /
+                                  maxProjectSessions) *
+                                  100,
+                                100
+                              )}%`
+                            }}
                           />
                         </div>
-                        <span className="text-xs text-gray-400 w-10 text-right">
-                          {project.session_count}
+                        <span className="text-xs w-10 text-right">
+                          {unassignedProjects.session_count}
                         </span>
                       </div>
-                    );
-                  })}
-                  {unassignedProjects.session_count > 0 && (
-                    <div className="flex items-center gap-3 text-gray-500">
-                      <span className="text-xs truncate w-32 italic">
-                        Unassigned
-                      </span>
-                      <div className="flex-1 bg-gray-800 rounded h-3">
-                        <div
-                          className="h-3 rounded bg-gray-500"
-                          style={{
-                            width: `${Math.min(
-                              (unassignedProjects.session_count /
-                                maxProjectSessions) *
-                                100,
-                              100
-                            )}%`
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs w-10 text-right">
-                        {unassignedProjects.session_count}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-4">
-                No project figures available for this time range.
-              </div>
-            )
-          }
-          tables={
-            projectAnalytics &&
-            (projectAnalytics.breakdown.length > 0 ||
-              projectAnalytics.unassigned.session_count > 0) ? (
-              <div className="space-y-3">
-                <div className="text-xs">
-                  <div className="grid grid-cols-12 gap-2 text-gray-500 pb-1 border-b border-gray-700">
-                    <div className="col-span-3">Project</div>
-                    <div className="col-span-2 text-right">Sessions</div>
-                    <div className="col-span-2 text-right">Tokens</div>
-                    <div className="col-span-2 text-right">Success</div>
-                    <div className="col-span-3 text-right">Rate</div>
+                    )}
                   </div>
-                  {projectAnalytics.breakdown.map((project) => {
-                    const successRate =
-                      project.session_count > 0
-                        ? (project.success_count / project.session_count) * 100
-                        : 0;
-                    const rateColor =
-                      successRate >= 70
-                        ? "text-green-400"
-                        : successRate >= 50
-                          ? "text-yellow-400"
-                          : "text-red-400";
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-4">
+                  No project figures available for this time range.
+                </div>
+              )
+            }
+            tables={
+              projectAnalytics &&
+              (projectAnalytics.breakdown.length > 0 ||
+                projectAnalytics.unassigned.session_count > 0) ? (
+                <div className="space-y-3">
+                  <div className="text-xs">
+                    <div className="grid grid-cols-12 gap-2 text-gray-500 pb-1 border-b border-gray-700">
+                      <div className="col-span-3">Project</div>
+                      <div className="col-span-2 text-right">Sessions</div>
+                      <div className="col-span-2 text-right">Tokens</div>
+                      <div className="col-span-2 text-right">Success</div>
+                      <div className="col-span-3 text-right">Rate</div>
+                    </div>
+                    {projectAnalytics.breakdown.map((project) => {
+                      const successRate =
+                        project.session_count > 0
+                          ? (project.success_count / project.session_count) *
+                            100
+                          : 0;
+                      const rateColor =
+                        successRate >= 70
+                          ? "text-green-400"
+                          : successRate >= 50
+                            ? "text-yellow-400"
+                            : "text-red-400";
 
-                    return (
-                      <div
-                        key={project.project_id}
-                        className="grid grid-cols-12 gap-2 py-1 hover:bg-gray-700/30"
-                      >
+                      return (
                         <div
-                          className="col-span-3 text-gray-200 truncate"
-                          title={project.project_name}
+                          key={project.project_id}
+                          className="grid grid-cols-12 gap-2 py-1 hover:bg-gray-700/30"
                         >
-                          {project.project_name}
+                          <div
+                            className="col-span-3 text-gray-200 truncate"
+                            title={project.project_name}
+                          >
+                            {project.project_name}
+                          </div>
+                          <div className="col-span-2 text-right text-gray-300">
+                            {project.session_count}
+                          </div>
+                          <div className="col-span-2 text-right text-blue-400">
+                            <TokenCost
+                              tokens={sumTokens(
+                                project.total_input_tokens,
+                                project.total_output_tokens
+                              )}
+                              usd={project.total_cost_usd}
+                            />
+                          </div>
+                          <div className="col-span-2 text-right text-green-400">
+                            {project.success_count}
+                          </div>
+                          <div className={`col-span-3 text-right ${rateColor}`}>
+                            {project.success_count > 0
+                              ? `${Math.round(successRate)}%`
+                              : "-"}
+                          </div>
                         </div>
-                        <div className="col-span-2 text-right text-gray-300">
-                          {project.session_count}
+                      );
+                    })}
+                    {projectAnalytics.unassigned.session_count > 0 && (
+                      <div className="grid grid-cols-12 gap-2 py-1 text-gray-500">
+                        <div className="col-span-3 italic">Unassigned</div>
+                        <div className="col-span-2 text-right">
+                          {projectAnalytics.unassigned.session_count}
                         </div>
-                        <div className="col-span-2 text-right text-blue-400">
+                        <div className="col-span-2 text-right">
                           <TokenCost
                             tokens={sumTokens(
-                              project.total_input_tokens,
-                              project.total_output_tokens
+                              projectAnalytics.unassigned.total_input_tokens,
+                              projectAnalytics.unassigned.total_output_tokens
                             )}
-                            usd={project.total_cost_usd}
+                            usd={projectAnalytics.unassigned.total_cost_usd}
                           />
                         </div>
-                        <div className="col-span-2 text-right text-green-400">
-                          {project.success_count}
+                        <div className="col-span-2 text-right">
+                          {projectAnalytics.unassigned.success_count}
                         </div>
-                        <div className={`col-span-3 text-right ${rateColor}`}>
-                          {project.success_count > 0
-                            ? `${Math.round(successRate)}%`
-                            : "-"}
-                        </div>
+                        <div className="col-span-3 text-right">-</div>
                       </div>
-                    );
-                  })}
-                  {projectAnalytics.unassigned.session_count > 0 && (
-                    <div className="grid grid-cols-12 gap-2 py-1 text-gray-500">
-                      <div className="col-span-3 italic">Unassigned</div>
-                      <div className="col-span-2 text-right">
-                        {projectAnalytics.unassigned.session_count}
-                      </div>
-                      <div className="col-span-2 text-right">
-                        <TokenCost
-                          tokens={sumTokens(
-                            projectAnalytics.unassigned.total_input_tokens,
-                            projectAnalytics.unassigned.total_output_tokens
-                          )}
-                          usd={projectAnalytics.unassigned.total_cost_usd}
-                        />
-                      </div>
-                      <div className="col-span-2 text-right">
-                        {projectAnalytics.unassigned.success_count}
-                      </div>
-                      <div className="col-span-3 text-right">-</div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Sessions are linked to projects by working directory.{" "}
+                    <button
+                      onClick={() => {
+                        const event = new KeyboardEvent("keydown", {
+                          key: "9"
+                        });
+                        window.dispatchEvent(event);
+                      }}
+                      className="text-blue-400 hover:text-blue-300 underline"
+                    >
+                      Manage projects
+                    </button>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  Sessions are linked to projects by working directory.{" "}
-                  <button
-                    onClick={() => {
-                      const event = new KeyboardEvent("keydown", { key: "9" });
-                      window.dispatchEvent(event);
-                    }}
-                    className="text-blue-400 hover:text-blue-300 underline"
-                  >
-                    Manage projects
-                  </button>
+              ) : (
+                <div className="text-gray-500 text-center py-4">
+                  No projects configured. Define projects in Settings to group
+                  sessions by codebase.
                 </div>
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-4">
-                No projects configured. Define projects in Settings to group
-                sessions by codebase.
-              </div>
-            )
-          }
-        />
-        <TransparencyDetails
-          label="How project comparisons are calculated"
-          calculations={[
-            "Sessions are mapped to projects by working directory.",
-            "Success rate = success_count / session_count.",
-            "Unassigned includes sessions that do not match a project path."
-          ]}
-          data={{
-            transcript_days: transcriptDays,
-            project_analytics: projectAnalytics
-          }}
-        />
-      </QuestionSection>
+              )
+            }
+          />
+          <TransparencyDetails
+            label="How project comparisons are calculated"
+            calculations={[
+              "Sessions are mapped to projects by working directory.",
+              "Success rate = success_count / session_count.",
+              "Unassigned includes sessions that do not match a project path."
+            ]}
+            data={{
+              transcript_days: transcriptDays,
+              project_analytics: projectAnalytics
+            }}
+          />
+        </QuestionSection>
 
-      <QuestionSection
-        question="Export analysis data"
-        description="Download a lightweight dataset for notebooks or SQL exploration."
-        defaultExpanded={false}
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-gray-400">
-            Use JSON for notebooks (pandas, Polars) or SQLite for quick SQL
-            queries.
-          </p>
-          {exportError && (
-            <div className="text-xs text-red-300 bg-red-900/30 border border-red-700 rounded p-2">
-              {exportError}
+        <QuestionSection
+          question="Export analysis data"
+          description="Download a lightweight dataset for notebooks or SQL exploration."
+          defaultExpanded={false}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-gray-400">
+              Use JSON for notebooks (pandas, Polars) or SQLite for quick SQL
+              queries.
+            </p>
+            {exportError && (
+              <div className="text-xs text-red-300 bg-red-900/30 border border-red-700 rounded p-2">
+                {exportError}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleDownloadCombined}
+                disabled={exporting}
+                className="px-3 py-2 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50"
+              >
+                Download analytics JSON
+              </button>
+              <button
+                onClick={handleDownloadSqlite}
+                disabled={exporting}
+                className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+              >
+                Download conversations SQLite
+              </button>
             </div>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleDownloadCombined}
-              disabled={exporting}
-              className="px-3 py-2 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50"
-            >
-              Download analytics JSON
-            </button>
-            <button
-              onClick={handleDownloadSqlite}
-              disabled={exporting}
-              className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
-            >
-              Download conversations SQLite
-            </button>
+            <div className="text-xs text-gray-500">
+              Files include the current {transcriptDays}-day window.
+            </div>
           </div>
-          <div className="text-xs text-gray-500">
-            Files include the current {transcriptDays}-day window.
-          </div>
-        </div>
-      </QuestionSection>
-    </div>
+        </QuestionSection>
+      </div>
+    </SelfDocumentingSection>
   );
 }
 

@@ -14,6 +14,10 @@ import { useConversationsOptional } from "../context/ConversationContext";
 import { AgentDetailModal } from "./AgentDetailModal";
 import { HookTimelineSection } from "./HookTimelineSection";
 import { HookEnhancementsSection } from "./HookEnhancementsSection";
+import {
+  SelfDocumentingSection,
+  useSelfDocumentingVisible
+} from "./ui/SelfDocumentingSection";
 
 interface SessionTokens {
   inputTokens: number;
@@ -196,6 +200,7 @@ export function AgentPane({
   sessionTokens,
   showHookEnhancements = true
 }: AgentPaneProps) {
+  const showSelfDocs = useSelfDocumentingVisible();
   const [selectedPid, setSelectedPid] = useState<number | null>(null);
   const [filter, setFilter] = useState("");
   const [groupByLabel, setGroupByLabel] = useState(false);
@@ -413,7 +418,46 @@ export function AgentPane({
   };
 
   return (
-    <>
+    <SelfDocumentingSection
+      title="Agents"
+      reads={[
+        {
+          path: "WebSocket /ws",
+          description: "Live agent snapshots and session updates"
+        },
+        {
+          path: "GET /api/managed-sessions",
+          description: "Managed sessions launched via aw run"
+        },
+        {
+          path: "GET /api/hooks/sessions",
+          description: "Hook sessions for activity correlation"
+        }
+      ]}
+      writes={[
+        {
+          path: "POST /api/agents/:pid/signal",
+          description: "Send process signals to agents"
+        },
+        {
+          path: "POST /api/agents/:pid/kill",
+          description: "Terminate a running agent"
+        },
+        {
+          path: "POST /api/agents/:pid/metadata",
+          description: "Persist agent naming and notes"
+        }
+      ]}
+      tests={[
+        "packages/watcher/test/api.test.ts",
+        "packages/monitor/test/scanners.test.ts"
+      ]}
+      notes={[
+        "State uses CPU heuristics with wrapper data when available.",
+        "Conversation links are inferred from working directory and timing."
+      ]}
+      visible={showSelfDocs}
+    >
       <div className="bg-gray-800 rounded-lg border border-gray-700">
         <div className="px-4 py-3 border-b border-gray-700">
           <div className="flex items-center justify-between">
@@ -701,7 +745,7 @@ export function AgentPane({
           onMetadataUpdate={handleMetadataUpdate}
         />
       )}
-    </>
+    </SelfDocumentingSection>
   );
 }
 

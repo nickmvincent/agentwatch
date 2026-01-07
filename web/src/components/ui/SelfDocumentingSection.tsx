@@ -1,4 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const SELF_DOCS_STORAGE_KEY = "agentwatch-show-self-docs";
+const SELF_DOCS_EVENT = "agentwatch:self-docs";
+
+export function getSelfDocumentingPreference(): boolean {
+  if (typeof window === "undefined") return true;
+  const stored = window.localStorage.getItem(SELF_DOCS_STORAGE_KEY);
+  if (stored === null) return true;
+  return stored === "true";
+}
+
+export function setSelfDocumentingPreference(visible: boolean): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SELF_DOCS_STORAGE_KEY, String(visible));
+  window.dispatchEvent(
+    new CustomEvent(SELF_DOCS_EVENT, { detail: { visible } })
+  );
+}
 
 interface FileInfo {
   /** File or directory path */
@@ -235,7 +253,34 @@ function FileList({ label, files, icon }: FileListProps) {
  * Can be controlled by user settings in the future.
  */
 export function useSelfDocumentingVisible(): boolean {
-  // TODO: Read from user settings
-  // For now, always show
-  return true;
+  const [visible, setVisible] = useState(() => getSelfDocumentingPreference());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== SELF_DOCS_STORAGE_KEY) return;
+      if (event.newValue === null) {
+        setVisible(true);
+        return;
+      }
+      setVisible(event.newValue === "true");
+    };
+
+    const handlePreferenceEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ visible?: boolean }>).detail;
+      if (typeof detail?.visible === "boolean") {
+        setVisible(detail.visible);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener(SELF_DOCS_EVENT, handlePreferenceEvent);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(SELF_DOCS_EVENT, handlePreferenceEvent);
+    };
+  }, []);
+
+  return visible;
 }

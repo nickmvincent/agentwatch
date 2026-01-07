@@ -16,6 +16,8 @@
 import type { Hono } from "hono";
 import type { HookStore } from "@agentwatch/monitor";
 import type { ConnectionManager } from "../connection-manager";
+import type { HookNotifier } from "../notifications";
+import type { NotificationsConfig } from "../config";
 import {
   hookSessionToDict,
   toolUsageToDict,
@@ -191,11 +193,15 @@ export function registerHookStatsRoutes(app: Hono, hookStore: HookStore): void {
  * @param app - The Hono app instance
  * @param hookStore - HookStore to record events
  * @param connectionManager - For broadcasting notifications
+ * @param notifier - Optional HookNotifier for desktop notifications
+ * @param notifyConfig - Notification configuration
  */
 export function registerHookEventRoutes(
   app: Hono,
   hookStore: HookStore,
-  connectionManager: ConnectionManager
+  connectionManager: ConnectionManager,
+  notifier?: HookNotifier,
+  notifyConfig?: NotificationsConfig
 ): void {
   /**
    * POST /api/hooks/session-start
@@ -231,6 +237,11 @@ export function registerHookEventRoutes(
       source
     );
 
+    // Desktop notification for session start (if enabled)
+    if (notifier && notifyConfig?.hookSessionStart) {
+      notifier.notifySessionStart(sessionId, cwd);
+    }
+
     return c.json({ result: "continue" });
   });
 
@@ -244,13 +255,18 @@ export function registerHookEventRoutes(
    */
   app.post("/api/hooks/session-end", async (c) => {
     const body = await c.req.json();
-    const { session_id: sessionId } = body;
+    const { session_id: sessionId, cwd = "" } = body;
 
     if (!sessionId) {
       return c.json({ error: "Missing session_id" }, 400);
     }
 
     hookStore.sessionEnd(sessionId);
+
+    // Desktop notification for session end
+    if (notifier && notifyConfig?.hookSessionEnd) {
+      notifier.notifySessionEnd(sessionId, cwd);
+    }
 
     return c.json({ result: "continue" });
   });
@@ -288,6 +304,11 @@ export function registerHookEventRoutes(
     );
 
     hookStore.updateSessionAwaiting(sessionId, false);
+
+    // Start long-running timer for Bash commands
+    if (notifier && notifyConfig?.hookLongRunning && toolName === "Bash") {
+      notifier.startLongRunningTimer(sessionId, toolName, body.cwd ?? "");
+    }
 
     return c.json({ result: "continue" });
   });
@@ -346,6 +367,16 @@ export function registerHookEventRoutes(
       }
     }
 
+    // Clear long-running timer
+    if (notifier) {
+      notifier.clearLongRunningTimer(sessionId);
+    }
+
+    // Notify on tool failure
+    if (notifier && notifyConfig?.hookToolFailure && error) {
+      notifier.notifyToolFailure(sessionId, toolName, error, body.cwd ?? "");
+    }
+
     return c.json({ result: "continue" });
   });
 
@@ -356,8 +387,19 @@ export function registerHookEventRoutes(
    *
    * @returns { result: "continue" }
    */
-  app.post("/api/hooks/stop", async (_c) => {
-    return _c.json({ result: "continue" });
+  app.post("/api/hooks/stop", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const { session_id: sessionId, cwd = "" } = body as {
+      session_id?: string;
+      cwd?: string;
+    };
+
+    // Notify that agent stopped (awaiting input)
+    if (notifier && notifyConfig?.hookAwaitingInput && sessionId) {
+      notifier.notifyAwaitingInput(sessionId, cwd);
+    }
+
+    return c.json({ result: "continue" });
   });
 
   /**

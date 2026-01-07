@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { fetchRawConfig, saveRawConfig } from "../api/client";
 import { HookEnhancementsSection } from "./HookEnhancementsSection";
+import {
+  setSelfDocumentingPreference,
+  useSelfDocumentingVisible
+} from "./ui/SelfDocumentingSection";
 
 export function WatcherSettingsPane() {
   const [content, setContent] = useState("");
@@ -9,6 +13,7 @@ export function WatcherSettingsPane() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const showSelfDocs = useSelfDocumentingVisible();
 
   const loadConfig = async () => {
     setLoading(true);
@@ -55,6 +60,33 @@ export function WatcherSettingsPane() {
 
   return (
     <div className="space-y-4">
+      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 className="text-lg font-semibold text-white mb-2">
+          Display Preferences
+        </h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-gray-200">Component Documentation</div>
+            <div className="text-xs text-gray-500">
+              Show self-documenting sections in each pane
+            </div>
+          </div>
+          <button
+            onClick={() => setSelfDocumentingPreference(!showSelfDocs)}
+            disabled={saving}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              showSelfDocs ? "bg-blue-600" : "bg-gray-600"
+            } ${saving ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                showSelfDocs ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
       <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
         <h2 className="text-lg font-semibold text-white mb-2">
           Watcher Settings

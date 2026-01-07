@@ -17,6 +17,10 @@ import type {
   RunOutcome,
   RunPrediction
 } from "../api/types";
+import {
+  SelfDocumentingSection,
+  useSelfDocumentingVisible
+} from "./ui/SelfDocumentingSection";
 
 const API_BASE = import.meta.env.VITE_API_BASE
   ? import.meta.env.VITE_API_BASE.replace(/\/api$/, "")
@@ -34,6 +38,7 @@ interface PredictionWithOutcome {
 }
 
 export function CommandCenterPane({ managedSessions }: CommandCenterPaneProps) {
+  const showSelfDocs = useSelfDocumentingVisible();
   // Form state
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedAgent, setSelectedAgent] = useState<AgentType>("claude");
@@ -362,7 +367,56 @@ export function CommandCenterPane({ managedSessions }: CommandCenterPaneProps) {
   const completedRuns = predictions.filter((p) => p.outcome);
 
   return (
-    <div className="space-y-6">
+    <SelfDocumentingSection
+      title="Command Center"
+      reads={[
+        {
+          path: "GET /api/projects",
+          description: "Project list for run context"
+        },
+        {
+          path: "GET /api/principles",
+          description: "Principles from selected project path"
+        },
+        {
+          path: "GET /api/predictions",
+          description: "Recent predictions and outcomes"
+        },
+        {
+          path: "GET /api/calibration",
+          description: "Calibration stats for predictions"
+        },
+        {
+          path: "GET /api/command-center/tmux-available",
+          description: "tmux availability for interactive runs"
+        }
+      ]}
+      writes={[
+        {
+          path: "POST /api/managed-sessions/run",
+          description: "Launch a managed run (headless)"
+        },
+        {
+          path: "POST /api/managed-sessions/run-interactive",
+          description: "Launch a managed run (interactive)"
+        },
+        {
+          path: "POST /api/predictions",
+          description: "Create a prediction entry"
+        },
+        {
+          path: "POST /api/predictions/:id/outcome",
+          description: "Record run outcomes for calibration"
+        }
+      ]}
+      tests={["packages/watcher/test/integration.test.ts"]}
+      notes={[
+        "Run endpoints are still being wired in watcher.",
+        "Predictions are persisted separately from managed sessions."
+      ]}
+      visible={showSelfDocs}
+    >
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -798,7 +852,8 @@ export function CommandCenterPane({ managedSessions }: CommandCenterPaneProps) {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </SelfDocumentingSection>
   );
 }
 

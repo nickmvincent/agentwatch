@@ -28,6 +28,10 @@ import { AuditLogPane } from "./AuditLogPane";
 import { ReferencePane } from "./ReferencePane";
 import { Toast } from "./Toast";
 import { InfoTooltip } from "./ui/InfoTooltip";
+import {
+  setSelfDocumentingPreference,
+  useSelfDocumentingVisible
+} from "./ui/SelfDocumentingSection";
 
 type HideableTab = "ports";
 
@@ -41,6 +45,7 @@ export function SettingsPane({
   onToggleTabVisibility
 }: SettingsPaneProps) {
   const { getConfig, invalidate } = useData();
+  const showSelfDocs = useSelfDocumentingVisible();
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -4139,6 +4144,29 @@ function ClaudeSettingsSection() {
                 UI Preferences
               </h3>
               <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-200">
+                      Component Documentation
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Show self-documenting sections in each pane
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelfDocumentingPreference(!showSelfDocs)}
+                    disabled={saving}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showSelfDocs ? "bg-blue-600" : "bg-gray-600"
+                    } ${saving ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showSelfDocs ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm text-gray-200">Spinner Tips</div>

@@ -97,6 +97,7 @@ import {
 import type { WatcherConfig } from "./config";
 import type { ConnectionManager } from "./connection-manager";
 import type { SessionLogger } from "./session-logger";
+import { HookNotifier } from "./notifications";
 
 // Import modular routes
 import {
@@ -245,7 +246,25 @@ export function createWatcherApp(state: WatcherAppState): Hono {
   registerPredictionRoutes(app, predictionStore);
 
   // Hook event handlers (called by Claude Code)
-  registerHookEventRoutes(app, state.hookStore, state.connectionManager);
+  // Create notifier if notifications are enabled
+  const notifier = state.config.notifications.enable
+    ? new HookNotifier({
+        enable: state.config.notifications.enable,
+        hookAwaitingInput: state.config.notifications.hookAwaitingInput,
+        hookSessionEnd: state.config.notifications.hookSessionEnd,
+        hookToolFailure: state.config.notifications.hookToolFailure,
+        hookLongRunning: state.config.notifications.hookLongRunning,
+        longRunningThresholdSeconds:
+          state.config.notifications.longRunningThresholdSeconds
+      })
+    : undefined;
+  registerHookEventRoutes(
+    app,
+    state.hookStore,
+    state.connectionManager,
+    notifier,
+    state.config.notifications
+  );
 
   // =========== WebSocket ===========
   app.get(
