@@ -141,7 +141,6 @@ function App() {
     hookSessions,
     managedSessions,
     recentToolUsages,
-    activityEvents,
     sessionTokens,
     setPaused,
     refresh
@@ -292,7 +291,6 @@ function App() {
             hookSessions={hookSessions}
             managedSessions={managedSessions}
             recentToolUsages={recentToolUsages}
-            activityEvents={activityEvents}
             sessionTokens={sessionTokens}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -329,7 +327,6 @@ function AppInner({
   hookSessions,
   managedSessions,
   recentToolUsages,
-  activityEvents,
   sessionTokens,
   activeTab,
   setActiveTab,
@@ -358,7 +355,6 @@ function AppInner({
   hookSessions: import("./api/types").HookSession[];
   managedSessions: import("./api/types").ManagedSession[];
   recentToolUsages: import("./api/types").ToolUsage[];
-  activityEvents: import("./api/types").ActivityEvent[];
   sessionTokens: Record<
     string,
     { inputTokens: number; outputTokens: number; turnCount: number }
@@ -619,7 +615,6 @@ function AppInner({
             hookSessions={hookSessions}
             managedSessions={managedSessions}
             recentToolUsages={recentToolUsages}
-            activityEvents={activityEvents}
             sessionTokens={sessionTokens}
           />
         )}

@@ -34,7 +34,6 @@ function WatcherApp() {
     hookSessions,
     managedSessions,
     recentToolUsages,
-    activityEvents,
     unifiedEvents,
     fetchUnifiedEvents,
     sessionTokens,
