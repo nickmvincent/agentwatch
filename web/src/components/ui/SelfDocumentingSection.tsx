@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { UI_COMPONENTS, formatComponentName } from "../../lib/ui-registry";
+import { SELF_DOCS } from "../../lib/self-docs";
 
 const SELF_DOCS_STORAGE_KEY = "agentwatch-show-self-docs";
 const SELF_DOCS_EVENT = "agentwatch:self-docs";
@@ -47,6 +48,10 @@ interface SelfDocumentingSectionProps {
   defaultCollapsed?: boolean;
   /** Whether to show this section at all (can be controlled by user settings) */
   visible?: boolean;
+  /** Extra class name for details wrapper */
+  detailsClassName?: string;
+  /** Extra class name for details content wrapper */
+  contentClassName?: string;
   /** Content to wrap */
   children?: React.ReactNode;
   /** Compact mode - just show a small expandable icon */
@@ -74,6 +79,8 @@ export function SelfDocumentingSection({
   notes = [],
   defaultCollapsed = true,
   visible = true,
+  detailsClassName,
+  contentClassName,
   children,
   compact = false
 }: SelfDocumentingSectionProps) {
@@ -91,13 +98,21 @@ export function SelfDocumentingSection({
       : componentId
     : undefined;
 
+  const registryEntry = componentId ? SELF_DOCS[componentId] : undefined;
+  const mergedTitle = registryEntry?.title ?? title;
+  const mergedReads = registryEntry?.reads ?? reads;
+  const mergedWrites = registryEntry?.writes ?? writes;
+  const mergedTests = registryEntry?.tests ?? tests;
+  const mergedCalculations = registryEntry?.calculations ?? calculations;
+  const mergedNotes = registryEntry?.notes ?? notes;
+
   const hasContent =
     Boolean(componentLabel) ||
-    reads.length > 0 ||
-    writes.length > 0 ||
-    tests.length > 0 ||
-    calculations.length > 0 ||
-    notes.length > 0;
+    mergedReads.length > 0 ||
+    mergedWrites.length > 0 ||
+    mergedTests.length > 0 ||
+    mergedCalculations.length > 0 ||
+    mergedNotes.length > 0;
 
   if (!hasContent) {
     return <>{children}</>;
@@ -122,13 +137,13 @@ export function SelfDocumentingSection({
         {isExpanded && (
           <div className="absolute top-8 right-1 z-50 w-80 p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl text-xs">
             <DocumentationContent
-              title={title}
+              title={mergedTitle}
               componentLabel={componentLabel}
-              reads={reads.map(normalizeFileInfo)}
-              writes={writes.map(normalizeFileInfo)}
-              tests={tests}
-              calculations={calculations}
-              notes={notes}
+              reads={mergedReads.map(normalizeFileInfo)}
+              writes={mergedWrites.map(normalizeFileInfo)}
+              tests={mergedTests}
+              calculations={mergedCalculations}
+              notes={mergedNotes}
             />
           </div>
         )}
@@ -142,21 +157,21 @@ export function SelfDocumentingSection({
       <details
         open={isExpanded}
         onToggle={(e) => setIsExpanded((e.target as HTMLDetailsElement).open)}
-        className="text-xs border-t border-gray-700/50 pt-2 mt-3"
+        className={`text-xs border-t border-gray-700/50 pt-2 mt-3 ${detailsClassName ?? ""}`}
       >
         <summary className="cursor-pointer text-gray-500 hover:text-gray-400 select-none flex items-center gap-1">
           <span className="text-gray-600">{isExpanded ? "▼" : "▶"}</span>
-          <span>About this data</span>
+          <span>More</span>
         </summary>
-        <div className="mt-2 pl-4">
+        <div className={`mt-2 pl-4 ${contentClassName ?? ""}`}>
           <DocumentationContent
-            title={title}
+            title={mergedTitle}
             componentLabel={componentLabel}
-            reads={reads.map(normalizeFileInfo)}
-            writes={writes.map(normalizeFileInfo)}
-            tests={tests}
-            calculations={calculations}
-            notes={notes}
+            reads={mergedReads.map(normalizeFileInfo)}
+            writes={mergedWrites.map(normalizeFileInfo)}
+            tests={mergedTests}
+            calculations={mergedCalculations}
+            notes={mergedNotes}
           />
         </div>
       </details>

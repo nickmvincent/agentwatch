@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchAllAgentMetadata, fetchProjects } from "../api/client";
 import type {
-  ActivityEvent,
   AgentMetadata,
   AgentProcess,
   Conversation,
@@ -30,7 +29,6 @@ interface AgentPaneProps {
   hookSessions: HookSession[];
   managedSessions: ManagedSession[];
   recentToolUsages: ToolUsage[];
-  activityEvents: ActivityEvent[];
   sessionTokens: Record<string, SessionTokens>;
   showHookEnhancements?: boolean;
 }
@@ -196,7 +194,6 @@ export function AgentPane({
   hookSessions,
   managedSessions,
   recentToolUsages,
-  activityEvents,
   sessionTokens,
   showHookEnhancements = true
 }: AgentPaneProps) {
@@ -458,6 +455,8 @@ export function AgentPane({
         "Conversation links are inferred from working directory and timing."
       ]}
       visible={showSelfDocs}
+      detailsClassName="px-4"
+      contentClassName="pl-0"
     >
       <div className="bg-gray-800 rounded-lg border border-gray-700">
         <div className="px-4 py-3 border-b border-gray-700">
@@ -724,7 +723,6 @@ export function AgentPane({
         <HookTimelineSection
           hookSessions={hookSessions}
           recentToolUsages={recentToolUsages}
-          activityEvents={activityEvents}
           sessionTokens={sessionTokens}
         />
 

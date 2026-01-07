@@ -137,7 +137,6 @@ function WatcherApp() {
             hookSessions={hookSessions}
             managedSessions={managedSessions}
             recentToolUsages={recentToolUsages}
-            activityEvents={activityEvents}
             sessionTokens={sessionTokens}
             showHookEnhancements={false}
           />
