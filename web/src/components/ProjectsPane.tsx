@@ -14,6 +14,7 @@ import {
   SelfDocumentingSection,
   useSelfDocumentingVisible
 } from "./ui/SelfDocumentingSection";
+import type { ComponentId } from "../lib/ui-registry";
 
 // Refresh data if tab has been hidden for more than 5 minutes
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
@@ -24,6 +25,7 @@ interface ProjectsPaneProps {
   activatedAt?: number;
   enableAnalytics?: boolean;
   analyticsDays?: number;
+  componentId?: ComponentId;
 }
 
 interface ProjectWithStats extends Project {
@@ -35,7 +37,8 @@ export function ProjectsPane({
   isActive = true,
   activatedAt = 0,
   enableAnalytics = true,
-  analyticsDays = 90
+  analyticsDays = 90,
+  componentId = "analyzer.projects.pane"
 }: ProjectsPaneProps) {
   const showSelfDocs = useSelfDocumentingVisible();
   const { setLoading: setGlobalLoading } = useLoading();
@@ -319,6 +322,7 @@ export function ProjectsPane({
   return (
     <SelfDocumentingSection
       title="Projects"
+      componentId={componentId}
       reads={[
         {
           path: "GET /api/projects",

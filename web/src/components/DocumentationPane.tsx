@@ -122,6 +122,7 @@ export function DocumentationPane() {
 
   const selfDocs = {
     title: "Docs",
+    componentId: "analyzer.docs.pane",
     reads: [
       { path: "GET /api/docs", description: "Documentation index" },
       { path: "GET /api/docs/:id", description: "Markdown content for docs" }
@@ -132,77 +133,85 @@ export function DocumentationPane() {
 
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="text-gray-400">Loading documentation...</div>
-      </div>
+      <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400">Loading documentation...</div>
+        </div>
+      </SelfDocumentingSection>
     );
   }
 
   if (error && docs.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="text-red-400">Error: {error}</div>
-        <button
-          onClick={loadDocs}
-          className="mt-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
-        >
-          Retry
-        </button>
-      </div>
+      <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-red-400">Error: {error}</div>
+          <button
+            onClick={loadDocs}
+            className="mt-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+          >
+            Retry
+          </button>
+        </div>
+      </SelfDocumentingSection>
     );
   }
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-200px)]">
-      {/* Sidebar */}
-      <div className="w-64 shrink-0 bg-gray-800 rounded-lg p-4 overflow-y-auto">
-        <h2 className="text-lg font-semibold text-white mb-4">Documentation</h2>
+    <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+      <div className="flex gap-6 h-[calc(100vh-200px)]">
+        {/* Sidebar */}
+        <div className="w-64 shrink-0 bg-gray-800 rounded-lg p-4 overflow-y-auto">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            Documentation
+          </h2>
 
-        {Object.entries(groupedDocs).map(([group, groupDocs]) => (
-          <div key={group} className="mb-4">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-              {group}
+          {Object.entries(groupedDocs).map(([group, groupDocs]) => (
+            <div key={group} className="mb-4">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                {group}
+              </div>
+              <div className="space-y-1">
+                {groupDocs.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => setSelectedDoc(doc.id)}
+                    className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                      selectedDoc === doc.id
+                        ? "bg-blue-600 text-white"
+                        : "text-gray-300 hover:bg-gray-700"
+                    }`}
+                  >
+                    {doc.title}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="space-y-1">
-              {groupDocs.map((doc) => (
-                <button
-                  key={doc.id}
-                  onClick={() => setSelectedDoc(doc.id)}
-                  className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                    selectedDoc === doc.id
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-300 hover:bg-gray-700"
-                  }`}
-                >
-                  {doc.title}
-                </button>
-              ))}
+          ))}
+
+          {docs.length === 0 && (
+            <p className="text-gray-500 text-sm">
+              No documentation found. Make sure docs are in the{" "}
+              <code>docs/</code> directory.
+            </p>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 bg-gray-800 rounded-lg p-6 overflow-y-auto">
+          {docLoading ? (
+            <div className="text-gray-400">Loading...</div>
+          ) : docContent ? (
+            <div>
+              <MarkdownRenderer content={docContent.content} />
             </div>
-          </div>
-        ))}
-
-        {docs.length === 0 && (
-          <p className="text-gray-500 text-sm">
-            No documentation found. Make sure docs are in the <code>docs/</code>{" "}
-            directory.
-          </p>
-        )}
+          ) : (
+            <div className="text-gray-500">
+              Select a document from the sidebar to view it.
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Content */}
-      <div className="flex-1 bg-gray-800 rounded-lg p-6 overflow-y-auto">
-        {docLoading ? (
-          <div className="text-gray-400">Loading...</div>
-        ) : docContent ? (
-          <div>
-            <MarkdownRenderer content={docContent.content} />
-          </div>
-        ) : (
-          <div className="text-gray-500">
-            Select a document from the sidebar to view it.
-          </div>
-        )}
-      </div>
-    </div>
+    </SelfDocumentingSection>
   );
 }

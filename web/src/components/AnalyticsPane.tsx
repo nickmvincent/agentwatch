@@ -734,6 +734,7 @@ export function AnalyticsPane({
 
   const selfDocs = {
     title: "Analytics",
+    componentId: "analyzer.analytics.pane",
     reads: [
       {
         path: "GET /api/analytics/combined",

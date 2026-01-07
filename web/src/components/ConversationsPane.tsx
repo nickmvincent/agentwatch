@@ -712,6 +712,7 @@ export function ConversationsPane({
 
   const selfDocs = {
     title: "Conversations",
+    componentId: "analyzer.conversations.pane",
     reads: [
       {
         path: "GET /api/contrib/correlated",

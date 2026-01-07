@@ -420,6 +420,7 @@ export function AgentPane({
   return (
     <SelfDocumentingSection
       title="Agents"
+      componentId="watcher.agents.pane"
       reads={[
         {
           path: "WebSocket /ws",

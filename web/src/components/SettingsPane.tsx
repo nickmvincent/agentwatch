@@ -29,6 +29,7 @@ import { ReferencePane } from "./ReferencePane";
 import { Toast } from "./Toast";
 import { InfoTooltip } from "./ui/InfoTooltip";
 import {
+  SelfDocumentingSection,
   setSelfDocumentingPreference,
   useSelfDocumentingVisible
 } from "./ui/SelfDocumentingSection";
@@ -102,29 +103,66 @@ export function SettingsPane({
     }
   };
 
+  const selfDocs = {
+    title: "Settings",
+    componentId: "analyzer.settings.pane",
+    reads: [
+      { path: "GET /api/config", description: "Watcher and analyzer config" },
+      {
+        path: "GET /api/claude/settings",
+        description: "Claude Code settings.json"
+      },
+      {
+        path: "GET /api/claude/reference/env-vars",
+        description: "Env var reference"
+      },
+      {
+        path: "GET /api/claude/reference/permissions",
+        description: "Permission reference"
+      }
+    ],
+    writes: [
+      { path: "PATCH /api/config", description: "Update configuration values" },
+      {
+        path: "PATCH /api/claude/settings",
+        description: "Merge Claude settings"
+      },
+      {
+        path: "PUT /api/claude/settings",
+        description: "Replace Claude settings"
+      }
+    ],
+    tests: ["packages/watcher/test/api.test.ts"],
+    notes: ["Settings changes persist to TOML and JSON files on disk."]
+  };
+
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="text-center py-8 text-gray-500">
-          Loading configuration...
+      <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-center py-8 text-gray-500">
+            Loading configuration...
+          </div>
         </div>
-      </div>
+      </SelfDocumentingSection>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="p-3 bg-red-900/30 border border-red-700 rounded text-red-400">
-          {error}
+      <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="p-3 bg-red-900/30 border border-red-700 rounded text-red-400">
+            {error}
+          </div>
+          <button
+            onClick={() => loadConfig()}
+            className="mt-4 px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
+          >
+            Retry
+          </button>
         </div>
-        <button
-          onClick={() => loadConfig()}
-          className="mt-4 px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
-        >
-          Retry
-        </button>
-      </div>
+      </SelfDocumentingSection>
     );
   }
 
@@ -147,7 +185,8 @@ export function SettingsPane({
   ];
 
   return (
-    <div className="space-y-6">
+    <SelfDocumentingSection {...selfDocs} visible={showSelfDocs}>
+      <div className="space-y-6">
       <Toast message={saveMessage} onDismiss={() => setSaveMessage(null)} />
 
       {/* Settings Overview Header */}
@@ -735,7 +774,8 @@ export function SettingsPane({
       <div id="raw-files" className="scroll-mt-16">
         <RawFilesSection />
       </div>
-    </div>
+      </div>
+    </SelfDocumentingSection>
   );
 }
 

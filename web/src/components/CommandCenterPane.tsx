@@ -369,6 +369,7 @@ export function CommandCenterPane({ managedSessions }: CommandCenterPaneProps) {
   return (
     <SelfDocumentingSection
       title="Command Center"
+      componentId="watcher.command.pane"
       reads={[
         {
           path: "GET /api/projects",

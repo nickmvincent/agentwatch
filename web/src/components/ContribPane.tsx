@@ -357,6 +357,7 @@ export function ContribPane({ onNavigateToTab }: ContribPaneProps) {
   const showSelfDocs = useSelfDocumentingVisible();
   const selfDocs = {
     title: "Share",
+    componentId: "analyzer.share.pane",
     reads: [
       {
         path: "GET /api/contrib/correlated",

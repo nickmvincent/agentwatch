@@ -139,6 +139,7 @@ export function PortsPane({
   return (
     <SelfDocumentingSection
       title="Ports"
+      componentId="watcher.ports.pane"
       reads={[
         {
           path: "WebSocket /ws",

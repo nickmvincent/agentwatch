@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getComponentLabel, type ComponentId } from "../../lib/ui-registry";
 
 const SELF_DOCS_STORAGE_KEY = "agentwatch-show-self-docs";
 const SELF_DOCS_EVENT = "agentwatch:self-docs";
@@ -28,6 +29,8 @@ interface FileInfo {
 interface SelfDocumentingSectionProps {
   /** Section title */
   title?: string;
+  /** Registry component identifier */
+  componentId?: ComponentId;
   /** Files this component reads from */
   reads?: (string | FileInfo)[];
   /** Files this component writes to */
@@ -60,6 +63,7 @@ interface SelfDocumentingSectionProps {
  */
 export function SelfDocumentingSection({
   title,
+  componentId,
   reads = [],
   writes = [],
   tests = [],
@@ -82,6 +86,10 @@ export function SelfDocumentingSection({
     tests.length > 0 ||
     calculations.length > 0 ||
     notes.length > 0;
+
+  const componentLabel = componentId
+    ? getComponentLabel(componentId)
+    : undefined;
 
   if (!hasContent) {
     return <>{children}</>;
@@ -106,6 +114,7 @@ export function SelfDocumentingSection({
           <div className="absolute top-8 right-1 z-50 w-80 p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl text-xs">
             <DocumentationContent
               title={title}
+              componentLabel={componentLabel}
               reads={reads.map(normalizeFileInfo)}
               writes={writes.map(normalizeFileInfo)}
               tests={tests}
@@ -133,6 +142,7 @@ export function SelfDocumentingSection({
         <div className="mt-2 pl-4">
           <DocumentationContent
             title={title}
+            componentLabel={componentLabel}
             reads={reads.map(normalizeFileInfo)}
             writes={writes.map(normalizeFileInfo)}
             tests={tests}
@@ -147,6 +157,7 @@ export function SelfDocumentingSection({
 
 interface DocumentationContentProps {
   title?: string;
+  componentLabel?: string;
   reads: FileInfo[];
   writes: FileInfo[];
   tests: string[];
@@ -156,6 +167,7 @@ interface DocumentationContentProps {
 
 function DocumentationContent({
   title,
+  componentLabel,
   reads,
   writes,
   tests,
@@ -164,6 +176,14 @@ function DocumentationContent({
 }: DocumentationContentProps) {
   return (
     <div className="space-y-3 text-gray-400">
+      {componentLabel && (
+        <div>
+          <div className="text-gray-500 mb-1">🏷️ Component:</div>
+          <code className="text-gray-400 bg-gray-800 px-1.5 py-0.5 rounded text-[10px] w-fit">
+            {componentLabel}
+          </code>
+        </div>
+      )}
       {title && (
         <div className="text-gray-300 font-medium border-b border-gray-700 pb-1 mb-2">
           {title}

@@ -147,7 +147,9 @@ function AnalyzerApp() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === "sessions" && <ConversationsPane />}
         {activeTab === "analytics" && <AnalyticsPane />}
-        {activeTab === "projects" && <ProjectsPane repos={[]} />}
+        {activeTab === "projects" && (
+          <ProjectsPane repos={[]} componentId="analyzer.projects.pane" />
+        )}
         {activeTab === "share" && (
           <ContribPane onNavigateToTab={(tab) => setActiveTab(tab as Tab)} />
         )}

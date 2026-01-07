@@ -228,6 +228,7 @@ export function ActivityFeedPane({
   return (
     <SelfDocumentingSection
       title="Activity Feed"
+      componentId="watcher.activity.pane"
       reads={[
         {
           path: "WebSocket /ws",

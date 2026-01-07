@@ -241,7 +241,11 @@ function WatcherReposPane({
           {showAll ? "Show relevant only" : "Show all"}
         </button>
       </div>
-      <ProjectsPane repos={filteredRepos} enableAnalytics={false} />
+      <ProjectsPane
+        repos={filteredRepos}
+        enableAnalytics={false}
+        componentId="watcher.repos.pane"
+      />
     </div>
   );
 }
