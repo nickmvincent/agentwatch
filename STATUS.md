@@ -36,7 +36,7 @@ See [CLAUDE.md](./CLAUDE.md) for full architecture details.
 
 ---
 
-## Current Sprint: Unified Event Stream
+## Recently Completed: Unified Event Stream
 
 ### Problem (Solved)
 Previously 10+ separate event systems with inconsistent logging. Now unified via EventBus:
@@ -80,7 +80,7 @@ events.jsonl  WebSocket  Activity Feed
 | B1. EventBus | ✅ Done | Core infrastructure in `packages/core/src/events/` |
 | B2. Watcher integration | ✅ Done | EventBus in server lifecycle, /api/events/* endpoints |
 | B3. Event logging | ✅ Done | Agents, ports, sessions, hooks, tools emit events |
-| B4. Activity Feed | Pending | Add filtering UI, use unified event stream |
+| B4. Activity Feed | ✅ Done | Category/action filtering, unified event stream |
 
 ### Decisions Made
 - **Event granularity**: Significant changes only (not every CPU tick)
@@ -132,7 +132,7 @@ events.jsonl  WebSocket  Activity Feed
 | Analyzer app | ✅ | Conversations, Analytics, Projects, Share |
 | Keyboard nav | ⚠️ Partial | Tabs 1-6, no vim keys |
 | Self-documenting | ⚠️ Partial | SelfDocumentingSection component exists |
-| Activity Feed | ⚠️ Limited | No filtering, no historical query |
+| Activity Feed | ✅ | Category/action filtering, unified EventBus stream |
 
 ### CLI
 
@@ -196,14 +196,13 @@ events.jsonl  WebSocket  Activity Feed
 ## Known Issues
 
 ### Data Model
-- Activity Feed is in-memory only (lost on refresh)
-- Events scattered across 10+ systems
-- Audit log underutilized (only 3 modules log)
+- Repo scanner events not yet in EventBus (too high frequency)
+- Agent/conversation metadata changes not yet in EventBus
+- Annotation changes not yet in EventBus
 
 ### UI
-- No filtering in Activity Feed
-- No historical event query
 - Some monolithic components need splitting
+- Self-documenting registry incomplete
 
 ### CLI
 - `aw run` wrapping doesn't capture stdin/stdout
@@ -231,3 +230,4 @@ events.jsonl  WebSocket  Activity Feed
 |------|--------|
 | 2026-01-06 | Created from roadmap-todos + checklist consolidation |
 | 2026-01-06 | Added unified event stream plan |
+| 2026-01-06 | Completed EventBus implementation + Activity Feed redesign |

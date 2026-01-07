@@ -18,7 +18,7 @@ General guidance for AI agents working on this codebase.
 - `web/` - React dashboard (Vite, serves from daemon)
 - `pages/` - Static site (Astro, for standalone use)
 
-**Data flow:** Hooks/scanners → DataStore/HookStore → API → Web UI
+**Data flow:** Hooks/scanners → DataStore/HookStore → EventBus → API/WebSocket → Web UI
 
 **Two-server architecture:**
 - **Watcher** (port 8420): Always-on daemon for real-time monitoring
@@ -96,11 +96,11 @@ Build order matters:
 |------|---------|
 | `packages/watcher/src/server.ts` | Watcher daemon lifecycle |
 | `packages/watcher/src/api.ts` | Watcher REST endpoints (agents, repos, hooks) |
+| `packages/core/src/events/event-bus.ts` | Unified event stream (audit + WebSocket + memory) |
+| `packages/core/src/audit/audit-log.ts` | Persistent audit logging to events.jsonl |
 | `packages/analyzer/src/server.ts` | Analyzer server (browser-only lifecycle) |
 | `packages/analyzer/src/enrichments/` | Quality scoring, auto-tagging |
 | `packages/shared-api/src/dict-converters.ts` | camelCase → snake_case for API |
-| `packages/daemon/src/api.ts` | All REST endpoints (legacy) |
-| `packages/daemon/src/server.ts` | Daemon lifecycle, scanners (legacy) |
 | `packages/monitor/src/hook-store.ts` | Hook session/tool tracking |
 | `packages/monitor/src/store.ts` | In-memory data store |
 | `packages/core/src/sanitizer.ts` | Transcript sanitization |
@@ -144,7 +144,12 @@ Build order matters:
 | `annotations.json` | JSON | User feedback/ratings |
 | `artifacts.json` | JSON | Session → artifact links (PRs, repos, commits) |
 
-**Audit event pattern:** All significant operations log to `events.jsonl` via `logAuditEvent(category, action, entityId, description, details)`. See `packages/analyzer/src/audit-log.ts`.
+**Event pattern:** All significant operations emit to EventBus which fans out to:
+1. `events.jsonl` (persistent audit log)
+2. WebSocket (real-time `agentwatch_event` messages)
+3. In-memory buffer (Activity Feed, last 500 events)
+
+Use `eventBus.emit({ category, action, entityId, description, details, source })`. See `packages/core/src/events/event-bus.ts`.
 
 **Transcript index:** Full scan every 24h, incremental updates every 5min. Persists at `transcripts/index.json`. See `packages/analyzer/src/transcript-index.ts`.
 
