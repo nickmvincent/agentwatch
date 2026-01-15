@@ -42,6 +42,13 @@ export interface ConversationsConfig {
   includeProcessSnapshots: boolean;
 }
 
+export type TranscriptIndexMode = "auto" | "manual";
+
+export interface TranscriptIndexConfig {
+  /** Indexing mode for local transcripts */
+  indexingMode: TranscriptIndexMode;
+}
+
 // =========== UI Preferences ===========
 
 export interface UiConfig {
@@ -96,6 +103,8 @@ export interface AnalyzerConfig {
   dataDir: string;
   /** Conversations/transcript settings */
   conversations: ConversationsConfig;
+  /** Transcript indexing settings */
+  transcripts: TranscriptIndexConfig;
   /** UI preferences */
   ui: UiConfig;
   /** Sharing/export preferences */
@@ -111,6 +120,9 @@ const DEFAULT_CONFIG: AnalyzerConfig = {
   conversations: {
     transcriptDays: 30,
     includeProcessSnapshots: false
+  },
+  transcripts: {
+    indexingMode: "auto"
   },
   ui: {
     hiddenTabs: [],
@@ -205,6 +217,26 @@ function parseAnalyzerConfig(content: string): AnalyzerConfig {
   );
   if (includeProcessSnapshots !== null)
     config.conversations.includeProcessSnapshots = includeProcessSnapshots;
+
+  // Parse shared [transcripts] section
+  const indexingMode = parseStringField(
+    content,
+    "transcripts",
+    "indexing_mode"
+  );
+  if (indexingMode === "auto" || indexingMode === "manual") {
+    config.transcripts.indexingMode = indexingMode;
+  }
+
+  // Parse [transcripts] section
+  const indexingMode = parseStringField(
+    content,
+    "transcripts",
+    "indexing_mode"
+  );
+  if (indexingMode === "auto" || indexingMode === "manual") {
+    config.transcripts.indexingMode = indexingMode;
+  }
 
   // Parse [ui] section
   const hiddenTabs = parseArrayField(content, "ui", "hidden_tabs");
@@ -438,6 +470,9 @@ export function saveAnalyzerConfig(config: AnalyzerConfig): void {
     "[conversations]",
     `transcript_days = ${config.conversations.transcriptDays}`,
     `include_process_snapshots = ${config.conversations.includeProcessSnapshots}`,
+    "",
+    "[transcripts]",
+    `indexing_mode = "${config.transcripts.indexingMode}"`,
     "",
     "[ui]",
     `hidden_tabs = [${config.ui.hiddenTabs.map((t) => `"${t}"`).join(", ")}]`,

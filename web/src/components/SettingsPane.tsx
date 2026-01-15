@@ -9,12 +9,17 @@ import {
   fetchProjects,
   fetchQualityConfig,
   fetchRawConfig,
+  fetchTranscriptIndexStatus,
   replaceClaudeSettings,
+  rescanTranscriptIndex,
   saveRawConfig,
+  type TranscriptIndexMode,
+  type TranscriptIndexStatus,
   updateClaudeSettings,
   updateConfig,
   updateHookEnhancements,
-  updateProject
+  updateProject,
+  updateTranscriptIndexMode
 } from "../api/client";
 import type {
   ClaudeSettings,
@@ -52,9 +57,15 @@ export function SettingsPane({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [indexStatus, setIndexStatus] =
+    useState<TranscriptIndexStatus | null>(null);
+  const [indexLoading, setIndexLoading] = useState(false);
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const [indexSaving, setIndexSaving] = useState(false);
 
   useEffect(() => {
     loadConfig();
+    loadIndexStatus();
   }, []);
 
   const loadConfig = async (invalidateFirst = false) => {
@@ -70,6 +81,63 @@ export function SettingsPane({
       setError(e instanceof Error ? e.message : "Failed to load config");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadIndexStatus = async () => {
+    setIndexLoading(true);
+    setIndexError(null);
+    try {
+      const data = await fetchTranscriptIndexStatus();
+      setIndexStatus(data);
+    } catch (e) {
+      setIndexError(
+        e instanceof Error ? e.message : "Failed to load transcript index"
+      );
+    } finally {
+      setIndexLoading(false);
+    }
+  };
+
+  const handleIndexModeUpdate = async (mode: TranscriptIndexMode) => {
+    setIndexSaving(true);
+    setSaveMessage(null);
+    setIndexError(null);
+    try {
+      const result = await updateTranscriptIndexMode(mode);
+      if (result.success) {
+        setSaveMessage(`Transcript indexing: ${result.indexing_mode}`);
+        await loadIndexStatus();
+      }
+    } catch (e) {
+      setIndexError(
+        e instanceof Error ? e.message : "Failed to update transcript indexing"
+      );
+    } finally {
+      setIndexSaving(false);
+      setTimeout(() => setSaveMessage(null), 3000);
+    }
+  };
+
+  const handleRescanIndex = async (force: boolean) => {
+    setIndexSaving(true);
+    setSaveMessage(null);
+    setIndexError(null);
+    try {
+      const result = await rescanTranscriptIndex(force);
+      setSaveMessage(
+        force
+          ? `Full rescan complete: ${result.total} transcripts`
+          : `Index refreshed: ${result.total} transcripts`
+      );
+      await loadIndexStatus();
+    } catch (e) {
+      setIndexError(
+        e instanceof Error ? e.message : "Failed to rescan transcript index"
+      );
+    } finally {
+      setIndexSaving(false);
+      setTimeout(() => setSaveMessage(null), 3000);
     }
   };
 
@@ -262,6 +330,13 @@ export function SettingsPane({
               config.conversations?.include_process_snapshots ?? false
             }
             saving={saving}
+            indexStatus={indexStatus}
+            indexLoading={indexLoading}
+            indexError={indexError}
+            indexSaving={indexSaving}
+            onRefreshIndexStatus={loadIndexStatus}
+            onUpdateIndexMode={handleIndexModeUpdate}
+            onRescanIndex={handleRescanIndex}
             onUpdateTranscriptDays={async (days: number) => {
               setSaving(true);
               setSaveMessage(null);
@@ -940,20 +1015,49 @@ function QualityConfigSection() {
   );
 }
 
+function formatIndexTimestamp(value: string | null | undefined): string {
+  if (!value) return "Never";
+  if (value.startsWith("1970")) return "Never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return date.toLocaleString();
+}
+
 // Conversations Settings Section - days selector, process snapshots, and correlation explanation
 function ConversationsSettingsSection({
   transcriptDays,
   includeProcessSnapshots,
   saving,
+  indexStatus,
+  indexLoading,
+  indexError,
+  indexSaving,
+  onRefreshIndexStatus,
+  onUpdateIndexMode,
+  onRescanIndex,
   onUpdateTranscriptDays,
   onToggleProcessSnapshots
 }: {
   transcriptDays: number;
   includeProcessSnapshots: boolean;
   saving: boolean;
+  indexStatus: TranscriptIndexStatus | null;
+  indexLoading: boolean;
+  indexError: string | null;
+  indexSaving: boolean;
+  onRefreshIndexStatus: () => void;
+  onUpdateIndexMode: (mode: TranscriptIndexMode) => void;
+  onRescanIndex: (force: boolean) => void;
   onUpdateTranscriptDays: (days: number) => void;
   onToggleProcessSnapshots: (enabled: boolean) => void;
 }) {
+  const activeMode = indexStatus?.config.indexing_mode ?? "auto";
+  const stats = indexStatus?.stats;
+  const isStale = Boolean(
+    stats && (stats.needs_full_scan || stats.needs_incremental_update)
+  );
+  const byAgent = stats ? Object.entries(stats.by_agent) : [];
+
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <h2 className="text-lg font-semibold text-white mb-2">Conversations</h2>
@@ -1022,6 +1126,140 @@ function ConversationsSettingsSection({
             />
           </button>
         </div>
+      </div>
+
+      {/* Transcript Index */}
+      <div className="mb-4 p-3 bg-gray-900/40 border border-gray-700/50 rounded">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-white flex items-center gap-1.5">
+              Transcript Index
+              <InfoTooltip content="Controls how the analyzer refreshes its local transcript index. Auto refreshes when stale; manual only refreshes when you click." />
+            </h3>
+            <p className="text-xs text-gray-400 mt-1">
+              Indexing keeps the transcript list fast and powers Conversations,
+              Analytics, and Share.
+            </p>
+          </div>
+          <button
+            onClick={onRefreshIndexStatus}
+            disabled={indexLoading || indexSaving}
+            className={`px-2.5 py-1 rounded text-xs font-medium ${
+              indexLoading || indexSaving
+                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                : "bg-gray-700 text-gray-200 hover:bg-gray-600"
+            }`}
+          >
+            {indexLoading ? "Refreshing..." : "Refresh status"}
+          </button>
+        </div>
+
+        {indexError && (
+          <div className="mt-2 text-xs text-red-400">{indexError}</div>
+        )}
+
+        {!indexStatus && !indexLoading && !indexError && (
+          <div className="mt-2 text-xs text-gray-500">
+            Index status unavailable.
+          </div>
+        )}
+
+        {indexStatus && (
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {(["auto", "manual"] as TranscriptIndexMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => onUpdateIndexMode(mode)}
+                  disabled={indexSaving}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    activeMode === mode
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                  } ${indexSaving ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {mode === "auto" ? "Auto" : "Manual"}
+                </button>
+              ))}
+              <span
+                className={`text-xs ${
+                  isStale ? "text-yellow-300" : "text-green-400"
+                }`}
+              >
+                {isStale ? "Stale" : "Up to date"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-400">
+              <div>
+                <span className="text-gray-500">Total transcripts:</span>{" "}
+                <span className="text-gray-200">{stats?.total ?? 0}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Index path:</span>{" "}
+                <code className="bg-gray-800 px-1 rounded">
+                  {indexStatus.index_path}
+                </code>
+              </div>
+              <div>
+                <span className="text-gray-500">Last full scan:</span>{" "}
+                <span className="text-gray-200">
+                  {formatIndexTimestamp(stats?.last_full_scan)}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Last incremental update:</span>{" "}
+                <span className="text-gray-200">
+                  {formatIndexTimestamp(stats?.last_incremental_update)}
+                </span>
+              </div>
+            </div>
+
+            {byAgent.length > 0 && (
+              <div className="flex flex-wrap gap-2 text-xs">
+                {byAgent.map(([agent, count]) => (
+                  <span
+                    key={agent}
+                    className="bg-gray-800 px-2 py-1 rounded text-gray-300"
+                  >
+                    {agent}: {count}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => onRescanIndex(false)}
+                disabled={indexSaving}
+                className={`px-3 py-1.5 rounded text-xs font-medium ${
+                  indexSaving
+                    ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-500"
+                }`}
+              >
+                Refresh index
+              </button>
+              <button
+                onClick={() => onRescanIndex(true)}
+                disabled={indexSaving}
+                className={`px-3 py-1.5 rounded text-xs font-medium ${
+                  indexSaving
+                    ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                    : "bg-gray-700 text-gray-200 hover:bg-gray-600"
+                }`}
+              >
+                Force full rescan
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500">
+              Stored in:{" "}
+              <code className="bg-gray-800 px-1 rounded">
+                ~/.config/agentwatch/analyzer.toml
+              </code>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Correlation explanation */}

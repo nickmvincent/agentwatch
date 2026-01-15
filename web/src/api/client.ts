@@ -1568,6 +1568,56 @@ export async function fetchTranscriptStats(): Promise<TranscriptStats> {
   return res.json();
 }
 
+export type TranscriptIndexMode = "auto" | "manual";
+
+export interface TranscriptIndexStatus {
+  status: "ok";
+  index_path: string;
+  stats: {
+    total: number;
+    by_agent: Record<string, number>;
+    last_full_scan: string;
+    last_incremental_update: string;
+    needs_full_scan: boolean;
+    needs_incremental_update: boolean;
+  };
+  config: {
+    indexing_mode: TranscriptIndexMode;
+  };
+}
+
+export async function fetchTranscriptIndexStatus(): Promise<TranscriptIndexStatus> {
+  const res = await fetch(`${API_BASE}/transcripts/index`);
+  if (!res.ok) throw new Error("Failed to fetch transcript index status");
+  return res.json();
+}
+
+export async function updateTranscriptIndexMode(
+  mode: TranscriptIndexMode
+): Promise<{ success: boolean; indexing_mode: TranscriptIndexMode }> {
+  const res = await fetch(`${API_BASE}/transcripts/index`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ indexing_mode: mode })
+  });
+  if (!res.ok) throw new Error("Failed to update transcript index settings");
+  return res.json();
+}
+
+export async function rescanTranscriptIndex(force = false): Promise<{
+  status: string;
+  total: number;
+  last_scan: string | null;
+}> {
+  const res = await fetch(`${API_BASE}/transcripts/rescan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force })
+  });
+  if (!res.ok) throw new Error("Failed to rescan transcript index");
+  return res.json();
+}
+
 // =============================================================================
 // Analytics API
 // =============================================================================

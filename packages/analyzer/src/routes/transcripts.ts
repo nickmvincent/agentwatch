@@ -15,9 +15,13 @@ import {
   loadTranscriptIndex,
   getIndexedTranscripts,
   getIndexStats,
-  updateTranscriptIndex
+  updateTranscriptIndex,
+  isFullScanDue,
+  isIncrementalUpdateDue,
+  getTranscriptIndexPath
 } from "../transcript-index";
 import { readTranscript } from "../local-logs";
+import { loadAnalyzerConfig, saveAnalyzerConfig } from "../config";
 
 /**
  * Register transcript routes.
@@ -276,6 +280,57 @@ export function registerTranscriptRoutes(app: Hono): void {
     } catch {
       return c.json({ error: "Transcript not found" }, 404);
     }
+  });
+
+  /**
+   * GET /api/transcripts/index
+   *
+   * Get transcript index status and indexing config.
+   */
+  app.get("/api/transcripts/index", (c) => {
+    const index = loadTranscriptIndex();
+    const stats = getIndexStats(index);
+    const config = loadAnalyzerConfig();
+
+    return c.json({
+      status: "ok",
+      index_path: getTranscriptIndexPath(),
+      stats: {
+        total: stats.total,
+        by_agent: stats.byAgent,
+        last_full_scan: stats.lastFullScan,
+        last_incremental_update: stats.lastIncrementalUpdate,
+        needs_full_scan: isFullScanDue(index),
+        needs_incremental_update: isIncrementalUpdateDue(index)
+      },
+      config: {
+        indexing_mode: config.transcripts.indexingMode
+      }
+    });
+  });
+
+  /**
+   * PATCH /api/transcripts/index
+   *
+   * Update transcript indexing settings.
+   */
+  app.patch("/api/transcripts/index", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      indexing_mode?: string;
+    };
+
+    if (body.indexing_mode !== "auto" && body.indexing_mode !== "manual") {
+      return c.json({ error: "Invalid indexing_mode" }, 400);
+    }
+
+    const config = loadAnalyzerConfig();
+    config.transcripts.indexingMode = body.indexing_mode;
+    saveAnalyzerConfig(config);
+
+    return c.json({
+      success: true,
+      indexing_mode: config.transcripts.indexingMode
+    });
   });
 
   /**

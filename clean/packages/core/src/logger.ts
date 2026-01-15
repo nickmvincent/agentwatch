@@ -1,4 +1,5 @@
 import { appendJsonl } from "./jsonl";
+import { createRotatingJsonlWriter, type LogRotationOptions } from "./log-rotation";
 import { createId } from "./ids";
 import { SCHEMA_VERSION, type SignificantEvent, type VerboseLogEntry } from "./types";
 
@@ -13,7 +14,15 @@ export type VerboseLogger = {
 export function createVerboseLogger(options: {
   service: string;
   logPath: string;
+  rotation?: LogRotationOptions;
+  /** When false, logger becomes a no-op (no disk writes). Defaults to true. */
+  enabled?: boolean;
 }): VerboseLogger {
+  const enabled = options.enabled ?? true;
+  const writer = enabled && options.rotation
+    ? createRotatingJsonlWriter(options.logPath, options.rotation)
+    : null;
+
   return {
     async log(kind, payload, trace) {
       const entry: VerboseLogEntry = {
@@ -25,7 +34,15 @@ export function createVerboseLogger(options: {
         payload,
         trace
       };
-      await appendJsonl(options.logPath, entry);
+      // Skip disk writes when verbose logging is disabled
+      if (!enabled) {
+        return entry;
+      }
+      if (writer) {
+        await writer.append(entry);
+      } else {
+        await appendJsonl(options.logPath, entry);
+      }
       return entry;
     }
   };

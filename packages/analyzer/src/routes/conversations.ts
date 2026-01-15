@@ -20,7 +20,10 @@ import {
 } from "../correlation";
 import {
   loadTranscriptIndex,
-  getIndexedTranscripts
+  getIndexedTranscripts,
+  updateTranscriptIndex,
+  isFullScanDue,
+  isIncrementalUpdateDue
 } from "../transcript-index";
 import type { LocalTranscript } from "../local-logs";
 import { loadAnalyzerConfig } from "../config";
@@ -209,6 +212,8 @@ export function registerConversationRoutes(app: Hono): void {
   app.get("/api/contrib/correlated", async (c) => {
     const limit = Number.parseInt(c.req.query("limit") ?? "100", 10);
     const days = Number.parseInt(c.req.query("days") ?? "30", 10);
+    const config = loadAnalyzerConfig();
+    const indexingMode = config.transcripts.indexingMode;
 
     // Read hook sessions from disk
     const hookSessions = readHookSessions(days);
@@ -216,8 +221,23 @@ export function registerConversationRoutes(app: Hono): void {
     // Read tool usages
     const toolUsagesMap = readToolUsages(days);
 
-    // Get local transcripts from index
-    const index = loadTranscriptIndex();
+    // Get local transcripts from index (refresh if stale or empty)
+    let index = loadTranscriptIndex();
+    const isEmpty = Object.keys(index.entries).length === 0;
+    const needsFullScan = isEmpty || isFullScanDue(index);
+    const needsUpdate = needsFullScan || isIncrementalUpdateDue(index);
+
+    if (indexingMode === "auto" && needsUpdate) {
+      try {
+        const result = await updateTranscriptIndex(index, {
+          forceFullScan: needsFullScan
+        });
+        index = result.index;
+      } catch (err) {
+        console.warn("[transcript-index] Update failed:", err);
+      }
+    }
+
     const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
     const allTranscripts = getIndexedTranscripts(index, {});
     const transcripts = allTranscripts.filter((t) => t.modifiedAt >= cutoffMs);
@@ -250,7 +270,6 @@ export function registerConversationRoutes(app: Hono): void {
     }
 
     // Attach projects from config
-    const config = loadAnalyzerConfig();
     const projects = config.projects ?? [];
     if (projects.length > 0) {
       correlated = attachProjects(correlated, projects);

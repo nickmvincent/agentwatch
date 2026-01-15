@@ -5,3 +5,9 @@ node_modules/
 .data/
 logs/
 *.log
+services/.test-tmp/
+.e2e-data*
+playwright-report/
+test-results/
+e2e/screenshots/
+coverage/

@@ -1,6 +1,9 @@
 {
   "name": "agentwatch-clean",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Local Agentwatch stack: Bun services + Request Lab UI.",
+  "license": "MIT",
+  "private": false,
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -11,10 +14,25 @@
     "dev:scanner": "bun --hot services/scanner/src/index.ts",
     "dev:hooks": "bun --hot services/hooks/src/index.ts",
     "dev:runs": "bun --hot services/runs/src/index.ts",
-    "dev:settings-editor": "bun --hot apps/settings-editor/src/index.ts",
-    "dev:request-lab": "bun --hot apps/request-lab/src/index.ts"
+    "dev:tailer": "bun --hot services/tailer/src/index.ts",
+    "dev:web": "bun --hot apps/web/src/index.ts",
+    "dev:meta-visualizer": "bun --hot services/meta-visualizer/src/index.ts",
+    "dev:events": "bun --hot services/events/src/index.ts",
+    "dev:review": "bun --hot services/review/src/index.ts",
+    "dev:agentwatch-settings": "bun --hot services/agentwatch-settings/src/index.ts",
+    "dev:launcher": "bun --hot services/launcher/src/index.ts",
+    "dev:index": "bun --hot services/index/src/index.ts",
+    "dev:parser": "bun --hot services/parser/src/index.ts",
+    "dev:bridges": "bun --hot services/bridges/src/index.ts",
+    "dev:writer": "bun --hot services/writer/src/index.ts",
+    "dev:content": "bun --hot services/content/src/index.ts",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "test:e2e": "playwright test",
+    "test:screenshots": "playwright test screenshots.e2e.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/node": "^22.10.2",
     "bun-types": "^1.1.38",
     "typescript": "^5.4.5",

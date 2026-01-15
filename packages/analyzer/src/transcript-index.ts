@@ -23,6 +23,10 @@ const FULL_SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
 /** How often to do incremental updates (5 minutes) */
 const INCREMENTAL_INTERVAL_MS = 5 * 60 * 1000;
 
+export function getTranscriptIndexPath(): string {
+  return INDEX_PATH;
+}
+
 /** Index entry stored for each transcript */
 export interface TranscriptIndexEntry {
   id: string;

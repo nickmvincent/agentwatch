@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@aw-clean/core": "*",
-    "hono": "^4.6.8"
+    "hono": "^4.6.8",
+    "zod": "^3.23.8"
   }
 }

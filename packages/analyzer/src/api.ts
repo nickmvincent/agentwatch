@@ -24,6 +24,8 @@
  * - `GET /api/transcripts` - List local transcripts
  * - `GET /api/transcripts/stats` - Aggregate transcript statistics
  * - `GET /api/transcripts/:id` - Get transcript content
+ * - `GET /api/transcripts/index` - Transcript index status
+ * - `PATCH /api/transcripts/index` - Update transcript indexing settings
  * - `POST /api/transcripts/rescan` - Trigger index rescan
  *
  * ### Enrichments

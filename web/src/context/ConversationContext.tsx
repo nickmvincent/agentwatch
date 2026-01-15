@@ -149,8 +149,16 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
         setError(null);
 
         // Load config first to get transcript_days (cached via DataProvider)
-        const config = await getConfig();
-        const days = config.conversations?.transcript_days ?? 30;
+        let days = 30;
+        try {
+          const config = await getConfig();
+          days = config.conversations?.transcript_days ?? 30;
+        } catch (configError) {
+          console.warn(
+            "Failed to load config, using default transcript days:",
+            configError
+          );
+        }
         setTranscriptDays(days);
 
         // Load data in parallel
@@ -184,8 +192,16 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
       setError(null);
 
       // Use cached config (refreshes within TTL)
-      const config = await getConfig();
-      const days = config.conversations?.transcript_days ?? 30;
+      let days = 30;
+      try {
+        const config = await getConfig();
+        days = config.conversations?.transcript_days ?? 30;
+      } catch (configError) {
+        console.warn(
+          "Failed to load config, using default transcript days:",
+          configError
+        );
+      }
       setTranscriptDays(days);
 
       const [conversationsResult, namesResult, enrichmentsResult] =
